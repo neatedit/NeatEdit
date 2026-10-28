@@ -56,6 +56,7 @@ enum MainMenu {
             item("Cut", #selector(NSText.cut(_:)), "x"),
             item("Copy", #selector(NSText.copy(_:)), "c"),
             item("Paste", #selector(NSText.paste(_:)), "v"),
+            item("Unwrap Pasted Text", #selector(EditorViewController.toggleUnwrapPastedText(_:))),
             item("Delete", #selector(NSText.delete(_:))),
             item("Select All", #selector(NSText.selectAll(_:)), "a"),
             .separator(),
@@ -76,6 +77,7 @@ enum MainMenu {
             item("Uppercase", #selector(NSResponder.uppercaseWord(_:))),
             item("Lowercase", #selector(NSResponder.lowercaseWord(_:))),
             item("Capitalize", #selector(NSResponder.capitalizeWord(_:))),
+            item("Unwrap Lines", #selector(EditorViewController.unwrapLines(_:))),
         ])
 
         main.addSubmenu("View", [

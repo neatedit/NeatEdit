@@ -12,6 +12,7 @@ public enum Preferences {
     private static let fontNameKey = "fontName"
     private static let wrapKey = "wrapLines"
     private static let lineNumbersKey = "showLineNumbers"
+    private static let unwrapPasteKey = "unwrapPastedText"
     static let defaultFontSize: CGFloat = 13
 
     public static func registerDefaults() {
@@ -19,6 +20,7 @@ public enum Preferences {
             fontSizeKey: Double(defaultFontSize),
             wrapKey: false,
             lineNumbersKey: false,
+            unwrapPasteKey: true,
         ])
         // Reopen every tab (including unsaved scratch tabs) after quitting,
         // regardless of the system "close windows when quitting" setting.
@@ -44,6 +46,12 @@ public enum Preferences {
     public static var showsLineNumbers: Bool {
         get { defaults.bool(forKey: lineNumbersKey) }
         set { set(newValue, forKey: lineNumbersKey) }
+    }
+
+    /// Undo terminal hard wrapping in pasted text (as its own undo step).
+    public static var unwrapsPastedText: Bool {
+        get { defaults.bool(forKey: unwrapPasteKey) }
+        set { set(newValue, forKey: unwrapPasteKey) }
     }
 
     /// Only fixed-pitch fonts: the large file viewer lays text out on a grid.

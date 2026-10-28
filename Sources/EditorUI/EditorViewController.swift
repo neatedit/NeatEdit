@@ -11,6 +11,9 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
     let banner = ExternalChangeBanner()
     private var review: ChangeReviewController?
     private(set) var lastReplacedRange: NSRange?
+    /// Shown instead of the caret position until the next edit or move.
+    private var statusHint: String?
+    private var hintArmed = false
     private(set) lazy var findController = FindController(textView: textView)
     var leftStatus: NSTextField { statusBar.left }
     var rightStatus: String { statusBar.rightText }
@@ -36,6 +39,7 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
         textView.findController = findController
         view = EditorChrome.root(scrollView: scrollView, statusBar: statusBar, banner: banner, findBar: findController.bar)
         banner.onPrimary = { [weak self] in self?.resolveExternalChange() }
+        textView.onPasteUnwrapped = { [weak self] in self?.showHint("Unwrapped pasted text — ⌘Z for original") }
         banner.onDismiss = { [weak self] in self?.document?.dismissExternalChange() }
         statusBar.encodingButton.target = self
         statusBar.encodingButton.action = #selector(showEncodingMenu(_:))
@@ -198,8 +202,21 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
 
     // MARK: Status bar
 
-    func textViewDidChangeSelection(_ notification: Notification) { scheduleStatusUpdate() }
-    func textDidChange(_ notification: Notification) { scheduleStatusUpdate() }
+    func textViewDidChangeSelection(_ notification: Notification) { clearHint(); scheduleStatusUpdate() }
+    func textDidChange(_ notification: Notification) { clearHint(); scheduleStatusUpdate() }
+
+    private func showHint(_ hint: String) {
+        statusHint = hint
+        hintArmed = false
+        scheduleStatusUpdate()
+        // Changes made by the action itself are still arriving; arm after them.
+        DispatchQueue.main.async { [weak self] in self?.hintArmed = true }
+    }
+
+    private func clearHint() {
+        guard hintArmed, statusHint != nil else { return }
+        statusHint = nil
+    }
 
     private func scheduleStatusUpdate() {
         statusBar.scheduleUpdate { [weak self] in self?.updateStatus() }
@@ -207,6 +224,7 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
 
     private func updateStatus() {
         statusBar.show(model.status(selectedRange: textView.selectedRange()))
+        if let statusHint { statusBar.left.stringValue = statusHint }
     }
 
     // MARK: Commands
@@ -236,6 +254,18 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
     @objc func makeTextSmaller(_ sender: Any?) { Preferences.fontSize -= 1 }
     @objc func makeTextStandardSize(_ sender: Any?) { Preferences.fontSize = Preferences.defaultFontSize }
     @objc func toggleWrapLines(_ sender: Any?) { Preferences.wrapsLines.toggle() }
+    @objc func toggleUnwrapPastedText(_ sender: Any?) { Preferences.unwrapsPastedText.toggle() }
+
+    /// Joins hard-wrapped lines in the selection, as one undo step.
+    @objc func unwrapLines(_ sender: Any?) {
+        let range = textView.selectedRange()
+        guard range.length > 0 else { return NSSound.beep() }
+        let text = (model.storage.string as NSString).substring(with: range)
+        let unwrapped = TextUnwrap.unwrap(text)
+        guard unwrapped != text else { return }
+        guard textView.replace(range, with: unwrapped, asUndoStep: "Unwrap Lines") else { return }
+        textView.setSelectedRange(NSRange(location: range.location, length: (unwrapped as NSString).length))
+    }
     @objc func toggleLineNumbers(_ sender: Any?) { Preferences.showsLineNumbers.toggle() }
     @objc func showFontPanel(_ sender: Any?) { Preferences.showFontPanel() }
     @objc func changeFont(_ sender: Any?) {
@@ -317,6 +347,12 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
         }
         if menuItem.action == #selector(toggleLineNumbers(_:)) {
             menuItem.state = Preferences.showsLineNumbers ? .on : .off
+        }
+        if menuItem.action == #selector(toggleUnwrapPastedText(_:)) {
+            menuItem.state = Preferences.unwrapsPastedText ? .on : .off
+        }
+        if menuItem.action == #selector(unwrapLines(_:)) {
+            return textView.isEditable && textView.selectedRange().length > 0
         }
         return true
     }
