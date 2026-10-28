@@ -94,4 +94,131 @@ final class ExternalChangeTests: XCTestCase {
         document.diskDidChange(Data("a\r\nb".utf8))
         guard case .none = document.externalState else { return XCTFail("line endings alone are not a change") }
     }
+
+    // MARK: Review, dismiss, big diff
+
+    /// Writes new contents to the file (with a fresh date) and reports it.
+    private func changeOnDisk(_ text: String, at url: URL, document: TextDocument) throws {
+        try Data(text.utf8).write(to: url)
+        try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(5)], ofItemAtPath: url.path)
+        document.diskDidChange(try Data(contentsOf: url))
+    }
+
+    private func diskDate(_ url: URL) throws -> Date? {
+        try url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+    }
+
+    func testBannerShowsForEditedTab() throws {
+        let (document, controller, url) = try open("a\nb\nc\nd")
+        XCTAssertTrue(controller.banner.isHidden)
+        type("!", at: 0, in: controller)
+        try changeOnDisk("a\nb\nc\nD", at: url, document: document)
+        XCTAssertFalse(controller.banner.isHidden)
+        XCTAssertEqual(controller.banner.message.stringValue, "File changed on disk")
+        XCTAssertEqual(controller.banner.primaryButton.title, "Review Changes")
+    }
+
+    func testApplyAcceptsChosenHunksAsOneUndoStep() throws {
+        let (document, controller, url) = try open("1\n2\n3\n4\n5")
+        type("!", at: 4, in: controller)  // "1\n2\n!3\n4\n5"
+        try changeOnDisk("X\n2\n3\n4\nY", at: url, document: document)
+        let merge = try XCTUnwrap(self.merge(document))
+        document.applyReview([merge.hunks[1].id: .accept])
+        XCTAssertEqual(controller.textView.string, "1\n2\n!3\n4\nY")
+        XCTAssertTrue(document.isDocumentEdited)
+        XCTAssertTrue(controller.banner.isHidden)
+        XCTAssertEqual(document.baseText, "X\n2\n3\n4\nY")
+        XCTAssertEqual(document.fileModificationDate, try diskDate(url))
+
+        document.undoManager?.undo()
+        XCTAssertEqual(controller.textView.string, "1\n2\n!3\n4\n5")
+    }
+
+    func testApplyKeepsTabLineEndings() throws {
+        let (document, controller, url) = try open("a\r\nb\r\nc")
+        type("!", at: 0, in: controller)
+        try changeOnDisk("a\r\nb\r\nC", at: url, document: document)
+        let merge = try XCTUnwrap(self.merge(document))
+        document.applyReview([merge.hunks[0].id: .accept])
+        XCTAssertEqual(controller.textView.string, "!a\r\nb\r\nC")
+    }
+
+    func testUndecidedHunksAreSkipped() throws {
+        let (document, controller, url) = try open("a\nb")
+        type("!", at: 0, in: controller)
+        try changeOnDisk("a\nB", at: url, document: document)
+        document.applyReview([:])
+        XCTAssertEqual(controller.textView.string, "!a\nb")
+        guard case .none = document.externalState else { return XCTFail("applied review clears the change") }
+    }
+
+    func testDismissKeepsMineAndAdoptsDiskAsBase() throws {
+        let (document, controller, url) = try open("a\nb")
+        type("!", at: 0, in: controller)
+        try changeOnDisk("a\nB", at: url, document: document)
+        document.dismissExternalChange()
+        XCTAssertEqual(controller.textView.string, "!a\nb")
+        XCTAssertTrue(controller.banner.isHidden)
+        XCTAssertEqual(document.baseText, "a\nB")
+        XCTAssertEqual(document.fileModificationDate, try diskDate(url))
+
+        // The same disk contents don't bring the banner back.
+        document.diskDidChange(try Data(contentsOf: url))
+        XCTAssertTrue(controller.banner.isHidden)
+    }
+
+    func testBigDiffOffersSaveMyVersionAs() throws {
+        let (document, controller, url) = try open("1\n2\n3\n4")
+        type("!", at: 0, in: controller)
+        try changeOnDisk("a\nb\nc\n4", at: url, document: document)
+        XCTAssertEqual(controller.banner.primaryButton.title, "Save My Version As…")
+    }
+
+    func testSaveMyVersionAsWritesCopyAndLoadsDisk() throws {
+        let (document, controller, url) = try open("1\n2\n3\n4")
+        type("!", at: 0, in: controller)
+        try changeOnDisk("a\nb\nc\n4", at: url, document: document)
+        let copy = url.deletingLastPathComponent().appendingPathComponent("\(UUID().uuidString) (my version).txt")
+        try document.saveMyVersionAs(url: copy)
+        XCTAssertEqual(try String(contentsOf: copy, encoding: .utf8), "!1\n2\n3\n4")
+        XCTAssertEqual(controller.textView.string, "a\nb\nc\n4")
+        XCTAssertFalse(document.isDocumentEdited)
+        XCTAssertTrue(controller.banner.isHidden)
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "a\nb\nc\n4")
+    }
+
+    func testSuggestedNameForMyVersion() {
+        XCTAssertEqual(TextDocument.myVersionName(for: URL(fileURLWithPath: "/x/notes.txt")), "notes (my version).txt")
+        XCTAssertEqual(TextDocument.myVersionName(for: URL(fileURLWithPath: "/x/Makefile")), "Makefile (my version)")
+    }
+
+    func testRediffKeepsDecisionsForUnchangedHunks() throws {
+        let first = ExternalMerge(base: "1\n2\n3\n4\n5", mine: "1\n2\n3\n4\n5", disk: "X\n2\n3\n4\n5")
+        let review = ChangeReviewController(merge: first)
+        _ = review.view
+        review.decide(first.hunks[0].id, .accept)
+        let second = ExternalMerge(base: "1\n2\n3\n4\n5", mine: "1\n2\n3\n4\n5", disk: "X\n2\n3\n4\nY")
+        review.update(merge: second)
+        XCTAssertEqual(review.decisions, [first.hunks[0].id: .accept])
+        XCTAssertEqual(review.rowCount, 2)
+    }
+
+    func testConflictRowsOfferTakeDiskOrKeepMine() throws {
+        let merge = ExternalMerge(base: "a\nb", mine: "a\nX", disk: "a\nY")
+        let review = ChangeReviewController(merge: merge)
+        _ = review.view
+        XCTAssertEqual(review.choiceLabels(for: merge.hunks[0].id), ["Take Disk", "Keep Mine"])
+    }
+
+    func testRepeatedChangesKeepOneBannerWithLatestDiff() throws {
+        let (document, controller, url) = try open("log")
+        type("!", at: 0, in: controller)
+        var text = "log"
+        for i in 1...10 {
+            text += "\nline \(i)"
+            try changeOnDisk(text, at: url, document: document)
+        }
+        XCTAssertFalse(controller.banner.isHidden)
+        XCTAssertEqual(merge(document)?.hunks.first?.base.newLines.count, 11)
+    }
 }

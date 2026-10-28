@@ -18,7 +18,7 @@ public final class TextDocument: NSDocument {
     private(set) var externalState = ExternalState.none {
         didSet {
             for controller in windowControllers {
-                (controller.contentViewController as? DocumentContent)?.externalStateDidChange()
+                (controller.contentViewController as? DocumentContent)?.externalStateDidChange(externalState)
             }
         }
     }
@@ -27,6 +27,8 @@ public final class TextDocument: NSDocument {
     /// changes are diffed against. Not kept for the read-only viewer.
     private(set) var baseText = ""
     private var diskCheck: DispatchWorkItem?
+    /// Modification date of the disk version behind `externalState`.
+    private var pendingDiskDate: Date?
 
     /// Documents longer than this (UTF-16 units, ~20 MB of text) open in the
     /// read-only viewer, which stays instant no matter the size.
@@ -173,9 +175,14 @@ public final class TextDocument: NSDocument {
             return
         }
         let diskText = Self.normalized(disk.text)
-        guard diskText != baseText else { return }
+        guard diskText != baseText else {
+            // Changed back to what we already know: nothing left to review.
+            if case .changed = externalState { externalState = .none }
+            return
+        }
 
         if isDocumentEdited {
+            pendingDiskDate = date
             externalState = .changed(ExternalMerge(base: baseText, mine: model.storage.string, disk: disk.text), disk: disk)
         } else {
             for controller in windowControllers {
@@ -185,6 +192,49 @@ public final class TextDocument: NSDocument {
             fileModificationDate = date
             updateChangeCount(.changeCleared)
         }
+    }
+
+    /// Brings the accepted hunks into the text as one undo step. The tab
+    /// stays unsaved; the disk version becomes the new base.
+    func applyReview(_ decisions: [Int: HunkDecision]) {
+        guard case .changed(let merge, let disk) = externalState, let model else { return }
+        let merged = merge.apply(decisions)
+        let text = model.lineEnding == .lf ? merged : model.lineEnding.apply(to: merged)
+        for controller in windowControllers {
+            (controller.contentViewController as? DocumentContent)?.replaceText(with: text, actionName: "Apply Disk Changes")
+        }
+        adoptDiskAsBase(disk)
+    }
+
+    /// Keep my text as it is, but stop treating this disk version as news.
+    func dismissExternalChange() {
+        guard case .changed(_, let disk) = externalState else { return }
+        adoptDiskAsBase(disk)
+    }
+
+    /// Writes my text to `url`, then shows the disk version in this tab.
+    func saveMyVersionAs(url: URL) throws {
+        guard case .changed(_, let disk) = externalState, let model else { return }
+        try model.encodedData().write(to: url, options: .atomic)
+        for controller in windowControllers {
+            (controller.contentViewController as? DocumentContent)?.reload(from: disk)
+        }
+        adoptDiskAsBase(disk)
+        updateChangeCount(.changeCleared)
+    }
+
+    /// "notes.txt" → "notes (my version).txt"
+    static func myVersionName(for url: URL) -> String {
+        let name = url.deletingPathExtension().lastPathComponent + " (my version)"
+        return url.pathExtension.isEmpty ? name : name + "." + url.pathExtension
+    }
+
+    private func adoptDiskAsBase(_ disk: TextFile) {
+        baseText = Self.normalized(disk.text)
+        // NSDocument compares this with the file before saving; matching it
+        // means no "changed by another application" alert for a decided change.
+        fileModificationDate = pendingDiskDate
+        externalState = .none
     }
 
     private var isViewer: Bool {

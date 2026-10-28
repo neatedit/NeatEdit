@@ -54,7 +54,8 @@ final class LargeFileViewController: NSViewController, DocumentContent, NSMenuIt
     }
 
     func reload(from file: TextFile) { replaceModel(EditorModel(file: file)) }
-    func externalStateDidChange() {}
+    func replaceText(with text: String, actionName: String) {}
+    func externalStateDidChange(_ state: TextDocument.ExternalState) {}
 
     private func attach(_ model: EditorModel) {
         model.onTotalsChanged = { [weak self] in self?.updateStatus() }

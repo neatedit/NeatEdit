@@ -6,7 +6,9 @@ protocol DocumentContent: NSViewController {
     func replaceModel(_ newModel: EditorModel)
     /// Replace the text with the file's new contents as one undo step.
     func reload(from file: TextFile)
-    func externalStateDidChange()
+    /// Replace the text as one undo step (format unchanged).
+    func replaceText(with text: String, actionName: String)
+    func externalStateDidChange(_ state: TextDocument.ExternalState)
 }
 
 /// The strip under the text: caret/selection on the left, totals on the
@@ -101,7 +103,7 @@ final class StatusBar: NSStackView {
 
 enum EditorChrome {
     /// Optional find bar, scroll view filling the tab, a hairline, then the status bar.
-    static func root(scrollView: NSScrollView, statusBar: StatusBar, findBar: NSView? = nil) -> NSView {
+    static func root(scrollView: NSScrollView, statusBar: StatusBar, banner: NSView? = nil, findBar: NSView? = nil) -> NSView {
         scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = true
         scrollView.borderType = .noBorder
@@ -111,7 +113,7 @@ enum EditorChrome {
         separator.boxType = .separator
 
         // A stack so the hidden find bar takes no space.
-        let content = NSStackView(views: [findBar, scrollView].compactMap { $0 })
+        let content = NSStackView(views: [banner, findBar, scrollView].compactMap { $0 })
         content.orientation = .vertical
         content.spacing = 0
         for view in content.arrangedSubviews {
@@ -119,6 +121,7 @@ enum EditorChrome {
         }
         scrollView.setContentHuggingPriority(.defaultLow, for: .vertical)
         findBar?.setContentHuggingPriority(.required, for: .vertical)
+        banner?.setContentHuggingPriority(.required, for: .vertical)
 
         let root = NSView()
         for sub in [content, separator, statusBar] as [NSView] {

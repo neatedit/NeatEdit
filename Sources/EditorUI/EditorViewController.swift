@@ -8,6 +8,8 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
     let scrollView = NSScrollView()
     private(set) var lineNumberRuler: LineNumberRuler?
     let statusBar = StatusBar()
+    let banner = ExternalChangeBanner()
+    private var review: ChangeReviewController?
     private(set) lazy var findController = FindController(textView: textView)
     var leftStatus: NSTextField { statusBar.left }
     var rightStatus: String { statusBar.rightText }
@@ -31,7 +33,9 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
         textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         textView.delegate = self
         textView.findController = findController
-        view = EditorChrome.root(scrollView: scrollView, statusBar: statusBar, findBar: findController.bar)
+        view = EditorChrome.root(scrollView: scrollView, statusBar: statusBar, banner: banner, findBar: findController.bar)
+        banner.onPrimary = { [weak self] in self?.resolveExternalChange() }
+        banner.onDismiss = { [weak self] in self?.document?.dismissExternalChange() }
         statusBar.encodingButton.target = self
         statusBar.encodingButton.action = #selector(showEncodingMenu(_:))
 
@@ -69,7 +73,61 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
         scrollView.reflectScrolledClipView(scrollView.contentView)
     }
 
-    func externalStateDidChange() {}
+    func replaceText(with text: String, actionName: String) {
+        let caret = textView.selectedRange().location
+        replaceAllText(with: text, actionName: actionName)
+        textView.setSelectedRange(NSRange(location: min(caret, model.storage.length), length: 0))
+    }
+
+    func externalStateDidChange(_ state: TextDocument.ExternalState) {
+        banner.show(state)
+        guard let review else { return }
+        if case .changed(let merge, _) = state, !merge.isBig {
+            review.update(merge: merge)
+        } else {
+            dismiss(review)
+            self.review = nil
+        }
+    }
+
+    /// Banner button: review hunk by hunk, or for a big change save mine
+    /// elsewhere and take the disk version.
+    func resolveExternalChange() {
+        guard let document, case .changed(let merge, _) = document.externalState else { return }
+        if merge.isBig {
+            saveMyVersionAs(document)
+        } else {
+            let review = ChangeReviewController(merge: merge)
+            review.onApply = { [weak self, weak document] decisions in
+                self?.closeReview()
+                document?.applyReview(decisions)
+            }
+            review.onCancel = { [weak self] in self?.closeReview() }
+            self.review = review
+            presentAsSheet(review)
+        }
+    }
+
+    private func closeReview() {
+        if let review { dismiss(review) }
+        review = nil
+    }
+
+    private func saveMyVersionAs(_ document: TextDocument) {
+        guard let window = view.window, let fileURL = document.fileURL else { return }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = TextDocument.myVersionName(for: fileURL)
+        panel.directoryURL = fileURL.deletingLastPathComponent()
+        panel.allowsOtherFileTypes = true
+        panel.beginSheetModal(for: window) { [weak document] response in
+            guard response == .OK, let url = panel.url, let document else { return }
+            do {
+                try document.saveMyVersionAs(url: url)
+            } catch {
+                document.presentError(error, modalFor: window, delegate: nil, didPresent: nil, contextInfo: nil)
+            }
+        }
+    }
 
     /// Swaps the whole text as one undo step; `alongside` runs inside the
     /// same undo group (and must register its own undo).
