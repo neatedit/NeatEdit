@@ -117,6 +117,12 @@ public final class EditorModel: NSObject, NSTextStorageDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
     }
 
+    /// Takes encoding and BOM from `file` (its text is ignored).
+    public func adoptFormat(of file: TextFile) {
+        self.file.encoding = file.encoding
+        self.file.hasBOM = file.hasBOM
+    }
+
     /// Encoding for the next save. UTF-16 always gets a BOM so it can be
     /// recognized when the file is opened again.
     public func setEncoding(_ encoding: String.Encoding) {

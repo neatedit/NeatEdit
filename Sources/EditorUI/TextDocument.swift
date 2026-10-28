@@ -7,6 +7,27 @@ public final class TextDocument: NSDocument {
     private var prepared: EditorModel.Prepared?
     private let preparedLock = NSLock()
 
+    /// What happened to the file on disk that the user hasn't dealt with yet.
+    enum ExternalState {
+        case none
+        /// Changed while the tab had unsaved edits; `disk` is the new file.
+        case changed(ExternalMerge, disk: TextFile)
+        case deleted
+    }
+
+    private(set) var externalState = ExternalState.none {
+        didSet {
+            for controller in windowControllers {
+                (controller.contentViewController as? DocumentContent)?.externalStateDidChange()
+            }
+        }
+    }
+
+    /// The text as last loaded or saved, LF line endings: what external
+    /// changes are diffed against. Not kept for the read-only viewer.
+    private(set) var baseText = ""
+    private var diskCheck: DispatchWorkItem?
+
     /// Documents longer than this (UTF-16 units, ~20 MB of text) open in the
     /// read-only viewer, which stays instant no matter the size.
     static var largeFileThreshold = 20_000_000
@@ -31,6 +52,18 @@ public final class TextDocument: NSDocument {
 
     override public func data(ofType typeName: String) throws -> Data {
         try currentModel().encodedData()
+    }
+
+    override public func save(
+        to url: URL, ofType typeName: String, for saveOperation: NSDocument.SaveOperationType,
+        completionHandler: @escaping (Error?) -> Void
+    ) {
+        // What lands on disk becomes the new base, unless it went to another file.
+        let snapshot = saveOperation == .saveToOperation ? nil : model.map { Self.normalized($0.storage.string) }
+        super.save(to: url, ofType: typeName, for: saveOperation) { [weak self] error in
+            if error == nil, let snapshot, let self, !self.isViewer { self.baseText = snapshot }
+            completionHandler(error)
+        }
     }
 
     override public func makeWindowControllers() {
@@ -98,6 +131,70 @@ public final class TextDocument: NSDocument {
         }
     }
 
+    // MARK: External changes
+
+    /// Called by the file coordinator on its own queue. Coalesces bursts
+    /// (a log written every few ms) and reads the file off the main thread.
+    override public func presentedItemDidChange() {
+        // Not calling super: NSDocument would revert or warn on its own terms.
+        DispatchQueue.main.async { self.scheduleDiskCheck() }
+    }
+
+    private func scheduleDiskCheck() {
+        diskCheck?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, let url = self.fileURL else { return }
+            DispatchQueue.global(qos: .userInitiated).async {
+                var data: Data?
+                var date: Date?
+                NSFileCoordinator(filePresenter: self).coordinate(readingItemAt: url, options: .withoutChanges, error: nil) { url in
+                    data = try? Data(contentsOf: url)
+                    date = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+                }
+                DispatchQueue.main.async { self.diskDidChange(data, modificationDate: date) }
+            }
+        }
+        diskCheck = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
+    }
+
+    /// The file on disk now holds `data` (nil: it's gone). A clean tab
+    /// reloads in place; an edited one gets an external change to review.
+    func diskDidChange(_ data: Data?, modificationDate: Date? = nil) {
+        guard let model, let data else { return }
+        guard let disk = (try? TextFile(data: data, encoding: model.file.encoding)) ?? (try? TextFile(data: data)) else { return }
+        let date = modificationDate ?? fileURL.flatMap {
+            try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+        }
+
+        if isViewer {
+            install(EditorModel(file: disk))
+            fileModificationDate = date
+            return
+        }
+        let diskText = Self.normalized(disk.text)
+        guard diskText != baseText else { return }
+
+        if isDocumentEdited {
+            externalState = .changed(ExternalMerge(base: baseText, mine: model.storage.string, disk: disk.text), disk: disk)
+        } else {
+            for controller in windowControllers {
+                (controller.contentViewController as? DocumentContent)?.reload(from: disk)
+            }
+            baseText = diskText
+            fileModificationDate = date
+            updateChangeCount(.changeCleared)
+        }
+    }
+
+    private var isViewer: Bool {
+        (model?.storage.length ?? 0) > Self.largeFileThreshold
+    }
+
+    static func normalized(_ text: String) -> String {
+        LineEnding.lf.apply(to: text)
+    }
+
     private func currentModel() -> EditorModel {
         if let model { return model }
         let prepared = preparedLock.withLock { () -> EditorModel.Prepared? in
@@ -106,6 +203,7 @@ public final class TextDocument: NSDocument {
         }
         let model = prepared.map(EditorModel.init(prepared:)) ?? EditorModel(file: TextFile(text: ""))
         self.model = model
+        updateBase()
         return model
     }
 
@@ -119,9 +217,14 @@ public final class TextDocument: NSDocument {
 
     private func install(_ newModel: EditorModel) {
         model = newModel
+        updateBase()
         for controller in windowControllers {
             (controller.contentViewController as? DocumentContent)?.replaceModel(newModel)
         }
+    }
+
+    private func updateBase() {
+        baseText = isViewer ? "" : Self.normalized(model?.storage.string ?? "")
     }
 }
 

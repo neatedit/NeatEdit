@@ -58,6 +58,43 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
         textView.setSelectedRange(NSRange(location: location, length: 0))
     }
 
+    func reload(from file: TextFile) {
+        let selection = textView.selectedRange()
+        let origin = scrollView.contentView.bounds.origin
+        replaceAllText(with: file.text, actionName: "Reload from Disk") {
+            self.setFormat(file, lineEnding: LineEnding.detect(in: file.text))
+        }
+        textView.setSelectedRange(NSRange(location: min(selection.location, model.storage.length), length: 0))
+        scrollView.contentView.scroll(to: origin)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+    }
+
+    func externalStateDidChange() {}
+
+    /// Swaps the whole text as one undo step; `alongside` runs inside the
+    /// same undo group (and must register its own undo).
+    private func replaceAllText(with text: String, actionName: String, alongside: () -> Void = {}) {
+        guard let storage = textView.textStorage else { return }
+        let full = NSRange(location: 0, length: storage.length)
+        textView.breakUndoCoalescing()
+        textView.undoManager?.beginUndoGrouping()
+        alongside()
+        if textView.shouldChangeText(in: full, replacementString: text) {
+            storage.replaceCharacters(in: full, with: NSAttributedString(string: text, attributes: textView.typingAttributes))
+            textView.didChangeText()
+        }
+        textView.undoManager?.endUndoGrouping()
+        textView.undoManager?.setActionName(actionName)
+    }
+
+    private func setFormat(_ file: TextFile, lineEnding: LineEnding) {
+        let old = (file: model.file, lineEnding: model.lineEnding)
+        model.adoptFormat(of: file)
+        model.lineEnding = lineEnding
+        textView.undoManager?.registerUndo(withTarget: self) { $0.setFormat(old.file, lineEnding: old.lineEnding) }
+        updateStatus()
+    }
+
     private func attach(_ model: EditorModel) {
         model.onTotalsChanged = { [weak self] in self?.updateStatus() }
         let isLarge = model.storage.length > Self.largeDocumentLimit
@@ -160,27 +197,12 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
     /// Converts every line break in the text; one undo step reverts both the
     /// text and the setting.
     func setLineEnding(_ ending: LineEnding) {
-        guard ending != model.lineEnding, let storage = textView.textStorage else { return }
-        let full = NSRange(location: 0, length: storage.length)
-        let converted = ending.apply(to: storage.string)
+        guard ending != model.lineEnding else { return }
         let caret = textView.selectedRange().location
-        textView.breakUndoCoalescing()
-        textView.undoManager?.beginUndoGrouping()
-        setLineEndingValue(ending)
-        if textView.shouldChangeText(in: full, replacementString: converted) {
-            storage.replaceCharacters(in: full, with: converted)
-            textView.didChangeText()
+        replaceAllText(with: ending.apply(to: model.storage.string), actionName: "Convert Line Endings") {
+            self.setFormat(self.model.file, lineEnding: ending)
         }
-        textView.undoManager?.endUndoGrouping()
-        textView.undoManager?.setActionName("Convert Line Endings")
-        textView.setSelectedRange(NSRange(location: min(caret, storage.length), length: 0))
-    }
-
-    private func setLineEndingValue(_ ending: LineEnding) {
-        let old = model.lineEnding
-        model.lineEnding = ending
-        textView.undoManager?.registerUndo(withTarget: self) { $0.setLineEndingValue(old) }
-        updateStatus()
+        textView.setSelectedRange(NSRange(location: min(caret, model.storage.length), length: 0))
     }
 
     @objc func goToLine(_ sender: Any?) {

@@ -4,6 +4,9 @@ import EditorCore
 /// What a tab's content controller must do for its document.
 protocol DocumentContent: NSViewController {
     func replaceModel(_ newModel: EditorModel)
+    /// Replace the text with the file's new contents as one undo step.
+    func reload(from file: TextFile)
+    func externalStateDidChange()
 }
 
 /// The strip under the text: caret/selection on the left, totals on the
