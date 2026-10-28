@@ -18,6 +18,21 @@ final class DocumentIntegrationTests: XCTestCase {
         RunLoop.main.run(until: Date().addingTimeInterval(0.05))
     }
 
+    func testUntitledDocumentsSaveAsTxtByDefault() {
+        let document = TextDocument()
+        // Restored untitled tabs come back typed as generic data/text, which has no extension.
+        for type in ["public.plain-text", "public.data", "public.text"] {
+            XCTAssertEqual(document.fileNameExtension(forType: type, saveOperation: .saveAsOperation), "txt", type)
+        }
+    }
+
+    func testSavedFilesKeepTheirOwnExtension() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("Makefile")
+        try Data("all:\n".utf8).write(to: url)
+        let document = try TextDocument(contentsOf: url, ofType: "public.data")
+        XCTAssertNil(document.fileNameExtension(forType: "public.data", saveOperation: .saveAsOperation))
+    }
+
     func testOpensFileAndShowsStatus() throws {
         let (_, controller) = try open(Data("hello\nсвіт\n".utf8))
         XCTAssertEqual(controller.textView.string, "hello\nсвіт\n")

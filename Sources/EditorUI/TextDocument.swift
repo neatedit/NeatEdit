@@ -52,8 +52,14 @@ public final class TextDocument: NSDocument {
         addWindowController(windowController)
     }
 
+    /// New text gets ".txt"; files that already exist keep whatever name they have.
+    override public func fileNameExtension(forType typeName: String, saveOperation: NSDocument.SaveOperationType) -> String? {
+        super.fileNameExtension(forType: typeName, saveOperation: saveOperation) ?? (fileURL == nil ? "txt" : nil)
+    }
+
     override public func prepareSavePanel(_ savePanel: NSSavePanel) -> Bool {
-        // Any extension (or none) is fine for a plain-text editor.
+        // Suggest .txt, but any extension (or none) is fine for a plain-text editor.
+        if fileURL == nil { savePanel.allowedContentTypes = [.plainText] }
         savePanel.allowsOtherFileTypes = true
         savePanel.isExtensionHidden = false
         return true
