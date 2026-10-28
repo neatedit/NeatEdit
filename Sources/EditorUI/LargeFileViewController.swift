@@ -1,0 +1,85 @@
+import AppKit
+import EditorCore
+
+/// A read-only tab for files too big for NSTextView.
+final class LargeFileViewController: NSViewController, DocumentContent, NSMenuItemValidation {
+    private(set) var model: EditorModel
+    let textView: LargeTextView
+    private let scrollView = NSScrollView()
+    private let statusBar = StatusBar()
+    private let textFinder = NSTextFinder()
+    var leftStatus: NSTextField { statusBar.left }
+    var rightStatus: NSTextField { statusBar.right }
+
+    init(model: EditorModel) {
+        self.model = model
+        textView = LargeTextView(model: model)
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func loadView() {
+        scrollView.hasHorizontalScroller = true
+        scrollView.documentView = textView
+        view = EditorChrome.root(scrollView: scrollView, statusBar: statusBar)
+
+        textFinder.client = textView
+        textFinder.findBarContainer = scrollView
+        textFinder.isIncrementalSearchingEnabled = false
+        textView.textFinder = textFinder
+        textView.onSelectionChange = { [weak self] in
+            self?.statusBar.scheduleUpdate { self?.updateStatus() }
+        }
+
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(preferencesChanged), name: Preferences.didChange, object: nil)
+        attach(model)
+    }
+
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        view.window?.makeFirstResponder(textView)
+    }
+
+    func replaceModel(_ newModel: EditorModel) {
+        model = newModel
+        textView.replaceModel(newModel)
+        textFinder.noteClientStringWillChange()
+        attach(newModel)
+    }
+
+    private func attach(_ model: EditorModel) {
+        model.onTotalsChanged = { [weak self] in self?.updateStatus() }
+        updateStatus()
+    }
+
+    private func updateStatus() {
+        statusBar.show(model.status(selectedRange: textView.selection))
+    }
+
+    @objc private func preferencesChanged() {
+        textView.setFont(Preferences.font)
+    }
+
+    @objc func makeTextBigger(_ sender: Any?) { Preferences.fontSize += 1 }
+    @objc func makeTextSmaller(_ sender: Any?) { Preferences.fontSize -= 1 }
+    @objc func makeTextStandardSize(_ sender: Any?) { Preferences.fontSize = Preferences.defaultFontSize }
+
+    @objc func goToLine(_ sender: Any?) {
+        guard let window = view.window else { return }
+        EditorChrome.askForLine(on: window) { [weak self] target in
+            guard let self else { return }
+            let offset = target.offset(in: self.model.storage.string as NSString, lineIndex: self.model.lineIndex)
+            self.textView.setSelection(NSRange(location: offset, length: 0))
+            self.textView.centerSelectionInVisibleArea(nil)
+            window.makeFirstResponder(self.textView)
+        }
+    }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        // Lines never wrap in the viewer.
+        menuItem.action != #selector(EditorViewController.toggleWrapLines(_:))
+    }
+}
