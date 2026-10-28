@@ -1,4 +1,5 @@
 import AppKit
+import EditorCore
 
 /// A plain-text NSTextView: pastes without formatting exactly at the caret
 /// and never "helps" by rewriting what you type.
@@ -48,6 +49,42 @@ public final class PlainTextView: NSTextView {
     }
 
     weak var findController: FindController?
+    /// Called after a paste was unwrapped, so the tab can say so.
+    var onPasteUnwrapped: (() -> Void)?
+
+    /// Pastes as is, then — if it looks like hard-wrapped terminal text —
+    /// unwraps it as a separate undo step: one ⌘Z gives the original back.
+    override public func readSelection(from pboard: NSPasteboard) -> Bool {
+        guard Preferences.unwrapsPastedText, let raw = pboard.string(forType: .string),
+              let unwrapped = TextUnwrap.unwrapIfWrapped(raw),
+              (undoManager?.groupingLevel ?? 0) == 0 else {
+            return super.readSelection(from: pboard)
+        }
+        let start = selectedRange().location
+        replace(selectedRange(), with: raw, asUndoStep: "Paste")
+        replace(NSRange(location: start, length: (raw as NSString).length), with: unwrapped, asUndoStep: "Unwrap Pasted Text")
+        onPasteUnwrapped?()
+        return true
+    }
+
+    /// Replaces `range` as a top-level undo step of its own (when nothing
+    /// else is open in this event) and puts the caret after it.
+    func replace(_ range: NSRange, with text: String, asUndoStep actionName: String) {
+        let undo = undoManager
+        let groupsByEvent = undo?.groupsByEvent ?? true
+        undo?.groupsByEvent = false
+        defer { undo?.groupsByEvent = groupsByEvent }
+        breakUndoCoalescing()
+        undo?.beginUndoGrouping()
+        if shouldChangeText(in: range, replacementString: text) {
+            textStorage?.replaceCharacters(in: range, with: NSAttributedString(string: text, attributes: typingAttributes))
+            didChangeText()
+        }
+        undo?.setActionName(actionName)
+        undo?.endUndoGrouping()
+        setSelectedRange(NSRange(location: range.location + (text as NSString).length, length: 0))
+        scrollRangeToVisible(selectedRange())
+    }
 
     override public func performFindPanelAction(_ sender: Any?) {
         guard let tag = (sender as? NSValidatedUserInterfaceItem)?.tag,
