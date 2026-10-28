@@ -6,10 +6,10 @@ final class LargeFileViewController: NSViewController, DocumentContent, NSMenuIt
     private(set) var model: EditorModel
     let textView: LargeTextView
     private let scrollView = NSScrollView()
-    private let statusBar = StatusBar()
+    let statusBar = StatusBar()
     private let textFinder = NSTextFinder()
     var leftStatus: NSTextField { statusBar.left }
-    var rightStatus: NSTextField { statusBar.right }
+    var rightStatus: String { statusBar.rightText }
 
     init(model: EditorModel) {
         self.model = model
@@ -24,6 +24,9 @@ final class LargeFileViewController: NSViewController, DocumentContent, NSMenuIt
         scrollView.hasHorizontalScroller = true
         scrollView.documentView = textView
         view = EditorChrome.root(scrollView: scrollView, statusBar: statusBar)
+        statusBar.canChangeLineEnding = false
+        statusBar.encodingButton.target = self
+        statusBar.encodingButton.action = #selector(showEncodingMenu(_:))
 
         textFinder.client = textView
         textFinder.findBarContainer = scrollView
@@ -50,6 +53,10 @@ final class LargeFileViewController: NSViewController, DocumentContent, NSMenuIt
         attach(newModel)
     }
 
+    func reload(from file: TextFile) { replaceModel(EditorModel(file: file)) }
+    func replaceText(with text: String, actionName: String) {}
+    func externalStateDidChange(_ state: TextDocument.ExternalState) {}
+
     private func attach(_ model: EditorModel) {
         model.onTotalsChanged = { [weak self] in self?.updateStatus() }
         updateStatus()
@@ -66,6 +73,28 @@ final class LargeFileViewController: NSViewController, DocumentContent, NSMenuIt
     @objc func makeTextBigger(_ sender: Any?) { Preferences.fontSize += 1 }
     @objc func makeTextSmaller(_ sender: Any?) { Preferences.fontSize -= 1 }
     @objc func makeTextStandardSize(_ sender: Any?) { Preferences.fontSize = Preferences.defaultFontSize }
+    @objc func showFontPanel(_ sender: Any?) { Preferences.showFontPanel() }
+    @objc func changeFont(_ sender: Any?) {
+        guard let manager = sender as? NSFontManager else { return }
+        Preferences.adoptFontPanelChoice(manager.convert(Preferences.font))
+    }
+    func validModesForFontPanel(_ fontPanel: NSFontPanel) -> NSFontPanel.ModeMask { [.collection, .face, .size] }
+
+    var document: TextDocument? { view.window?.windowController?.document as? TextDocument }
+
+    @objc func showEncodingMenu(_ sender: NSButton) {
+        StatusBar.pop(encodingMenu(), under: sender)
+    }
+
+    @objc func reopenWithEncoding(_ sender: NSMenuItem) {
+        guard let encoding = EditorChrome.encoding(of: sender) else { return }
+        document?.reopenAskingFirst(with: encoding, in: view.window)
+    }
+
+    /// Read-only: only re-decoding is offered.
+    func encodingMenu() -> NSMenu {
+        EditorChrome.encodingMenu(current: model.file.encoding, reopen: #selector(reopenWithEncoding(_:)), save: nil, target: self)
+    }
 
     @objc func goToLine(_ sender: Any?) {
         guard let window = view.window else { return }
@@ -79,7 +108,8 @@ final class LargeFileViewController: NSViewController, DocumentContent, NSMenuIt
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        // Lines never wrap in the viewer.
+        // Lines never wrap or get numbered in the viewer.
         menuItem.action != #selector(EditorViewController.toggleWrapLines(_:))
+            && menuItem.action != #selector(EditorViewController.toggleLineNumbers(_:))
     }
 }

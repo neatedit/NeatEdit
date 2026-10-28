@@ -37,7 +37,7 @@ final class DocumentIntegrationTests: XCTestCase {
         let (_, controller) = try open(Data("hello\nсвіт\n".utf8))
         XCTAssertEqual(controller.textView.string, "hello\nсвіт\n")
         XCTAssertEqual(controller.leftStatus.stringValue, "Ln 1, Col 1   Pos 0   Line 5 chars")
-        XCTAssertEqual(controller.rightStatus.stringValue, "11 chars, 3 lines   UTF-8   LF")
+        XCTAssertEqual(controller.rightStatus, "11 chars, 3 lines   UTF-8   LF")
     }
 
     func testStatusFollowsTypingAndSelection() throws {
@@ -61,6 +61,84 @@ final class DocumentIntegrationTests: XCTestCase {
         XCTAssertEqual(try document.data(ofType: "public.plain-text"), "a\r\nб\r\nв".data(using: .windowsCP1251)!)
     }
 
+    func testChoosingLineEndingConvertsAndUndoes() throws {
+        let (document, controller) = try open(Data("a\nb".utf8))
+        let undoManager = try XCTUnwrap(controller.textView.undoManager)
+        controller.setLineEnding(LineEnding.crlf)
+        drainMainQueue()
+        XCTAssertEqual(try document.data(ofType: "public.plain-text"), Data("a\r\nb".utf8))
+        XCTAssertEqual(controller.statusBar.lineEndingButton.title, "CRLF")
+        XCTAssertTrue(document.isDocumentEdited)
+
+        undoManager.undo()
+        drainMainQueue()
+        XCTAssertEqual(controller.textView.string, "a\nb")
+        XCTAssertEqual(controller.statusBar.lineEndingButton.title, "LF")
+        XCTAssertEqual(try document.data(ofType: "public.plain-text"), Data("a\nb".utf8))
+    }
+
+    func testLineEndingMenuListsAllChoices() throws {
+        let (_, controller) = try open(Data("a".utf8))
+        let menu = controller.statusBar.lineEndingMenu()
+        XCTAssertEqual(menu.items.map(\.title), ["LF", "CRLF", "CR"])
+        XCTAssertEqual(menu.items.map(\.state), [.on, .off, .off])
+    }
+
+    private func openFile(_ data: Data, name: String) throws -> (TextDocument, EditorViewController) {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString)-\(name)")
+        try data.write(to: url)
+        let document = try TextDocument(contentsOf: url, ofType: "public.plain-text")
+        document.makeWindowControllers()
+        let controller = try XCTUnwrap(document.windowControllers.first?.contentViewController as? EditorViewController)
+        _ = controller.view
+        return (document, controller)
+    }
+
+    func testReopenWithEncodingRedecodesFileBytes() throws {
+        let (document, controller) = try openFile("привіт".data(using: .windowsCP1251)!, name: "cp1251.txt")
+        XCTAssertEqual(controller.textView.string, "привіт")
+
+        try document.reopen(with: .isoLatin1)
+        XCTAssertEqual(controller.textView.string, "ïðèâ³ò")
+        XCTAssertEqual(controller.statusBar.encodingButton.title, "ISO-8859-1")
+        XCTAssertFalse(document.isDocumentEdited)
+
+        XCTAssertThrowsError(try document.reopen(with: .utf8))
+        XCTAssertEqual(controller.textView.string, "ïðèâ³ò")
+
+        try document.reopen(with: .windowsCP1251)
+        XCTAssertEqual(controller.textView.string, "привіт")
+    }
+
+    func testSaveWithEncodingChangesBytesAndMarksEdited() throws {
+        let (document, controller) = try open(Data("hi".utf8))
+        XCTAssertTrue(controller.applySaveEncoding(.utf16LittleEndian))
+        drainMainQueue()
+        XCTAssertEqual(try document.data(ofType: "public.plain-text"), Data([0xFF, 0xFE, 0x68, 0x00, 0x69, 0x00]))
+        XCTAssertEqual(controller.statusBar.encodingButton.title, "UTF-16 LE")
+        XCTAssertTrue(document.isDocumentEdited)
+    }
+
+    func testSaveWithEncodingRefusesTextThatDoesNotFit() throws {
+        let (document, controller) = try open(Data("привіт".utf8))
+        XCTAssertFalse(controller.applySaveEncoding(.isoLatin1))
+        XCTAssertEqual(controller.statusBar.encodingButton.title, "UTF-8")
+        XCTAssertFalse(document.isDocumentEdited)
+    }
+
+    func testEncodingMenuSections() throws {
+        let (_, untitled) = try open(Data("x".utf8))
+        let saveOnly = untitled.encodingMenu()
+        XCTAssertEqual(saveOnly.items.first?.title, "Save with Encoding")
+        XCTAssertEqual(saveOnly.items.filter { $0.state == .on }.map(\.title), ["UTF-8"])
+
+        let (_, file) = try openFile(Data("x".utf8), name: "x.txt")
+        let both = file.encodingMenu()
+        XCTAssertEqual(both.items.first?.title, "Reopen with Encoding")
+        XCTAssertEqual(both.items.filter(\.isSectionHeader).map(\.title), ["Reopen with Encoding", "Save with Encoding"])
+        XCTAssertEqual(both.items.count, 2 + 1 + 2 * TextFile.choices.count)
+    }
+
     func testEditsMarkDocumentDirty() throws {
         let (document, controller) = try open(Data("x".utf8))
         XCTAssertFalse(document.isDocumentEdited)
@@ -74,7 +152,7 @@ final class DocumentIntegrationTests: XCTestCase {
         try document.read(from: Data("new text".utf8), ofType: "public.plain-text")
         drainMainQueue()
         XCTAssertEqual(controller.textView.string, "new text")
-        XCTAssertEqual(controller.rightStatus.stringValue, "8 chars, 1 lines   UTF-8   LF")
+        XCTAssertEqual(controller.rightStatus, "8 chars, 1 lines   UTF-8   LF")
     }
 
     func testHugeDocumentsSkipBackgroundLayout() throws {
@@ -97,7 +175,7 @@ final class DocumentIntegrationTests: XCTestCase {
         document.makeWindowControllers()
         let controller = try XCTUnwrap(document.windowControllers.first?.contentViewController as? LargeFileViewController)
         _ = controller.view
-        XCTAssertEqual(controller.rightStatus.stringValue, "18 chars, 3 lines   UTF-8   LF")
+        XCTAssertEqual(controller.rightStatus, "18 chars, 3 lines   UTF-8   LF")
         XCTAssertEqual(controller.leftStatus.stringValue, "Ln 1, Col 1   Pos 0   Line 8 chars")
 
         controller.textView.moveDown(nil)
@@ -105,6 +183,33 @@ final class DocumentIntegrationTests: XCTestCase {
         XCTAssertEqual(controller.leftStatus.stringValue, "Ln 2, Col 1   Pos 9   Line 8 chars")
         XCTAssertFalse(document.isDocumentEdited)
         XCTAssertEqual(try document.data(ofType: "public.plain-text"), Data("line one\nline two\n".utf8))
+    }
+
+    func testViewerReloadKeepsScrollAndSelection() throws {
+        let saved = TextDocument.largeFileThreshold
+        TextDocument.largeFileThreshold = 10
+        defer { TextDocument.largeFileThreshold = saved }
+
+        let lines = (1...500).map { "line \($0)" }.joined(separator: "\n")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).log")
+        try Data(lines.utf8).write(to: url)
+        let document = try TextDocument(contentsOf: url, ofType: "public.plain-text")
+        document.makeWindowControllers()
+        let controller = try XCTUnwrap(document.windowControllers.first?.contentViewController as? LargeFileViewController)
+        let window = try XCTUnwrap(controller.view.window)
+        window.setContentSize(NSSize(width: 400, height: 300))
+        window.layoutIfNeeded()
+
+        controller.textView.setSelection(NSRange(location: 3, length: 0), scroll: false)
+        let clip = try XCTUnwrap(controller.textView.enclosingScrollView?.contentView)
+        clip.scroll(to: NSPoint(x: 0, y: 2000))
+        let origin = clip.bounds.origin
+
+        document.diskDidChange(Data((lines + "\nline 501").utf8))
+        XCTAssertEqual(controller.model.lineIndex.lineCount, 501)
+        XCTAssertEqual(controller.textView.selection, NSRange(location: 3, length: 0))
+        XCTAssertEqual(clip.bounds.origin, origin)
+        guard case .none = document.externalState else { return XCTFail("viewer never has pending changes") }
     }
 
     func testLargeFileLoadsQuicklyAndCaretMovesInstantly() throws {

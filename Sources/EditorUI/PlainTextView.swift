@@ -60,6 +60,16 @@ public final class PlainTextView: NSTextView {
         return super.validateMenuItem(menuItem)
     }
 
+    /// The font is an app-wide preference: hand the font panel's choice up
+    /// the responder chain (to the tab controller) instead of restyling text.
+    override public func changeFont(_ sender: Any?) {
+        _ = nextResponder?.tryToPerform(#selector(changeFont(_:)), with: sender)
+    }
+
+    public func validModesForFontPanel(_ fontPanel: NSFontPanel) -> NSFontPanel.ModeMask {
+        [.collection, .face, .size]
+    }
+
     public func setFont(_ font: NSFont) {
         // Re-applying the same font would invalidate layout of the whole document.
         if self.font == font, typingAttributes[.font] as? NSFont == font { return }

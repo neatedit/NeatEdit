@@ -39,19 +39,53 @@ public struct TextFile: Sendable {
         throw DecodingError.unsupportedEncoding
     }
 
+    /// Decodes exactly as `encoding` (a matching BOM is stripped and kept).
+    public init(data: Data, encoding: String.Encoding) throws {
+        let bom = Self.boms.first { $0.1 == encoding && data.starts(with: $0.0) }?.0
+        guard let text = String(data: data.dropFirst(bom?.count ?? 0), encoding: encoding) else {
+            throw DecodingError.unsupportedEncoding
+        }
+        self.init(text: text, encoding: encoding, hasBOM: bom != nil)
+    }
+
+    public static let koi8U = cfEncoding(.KOI8_U)
+    public static let koi8R = cfEncoding(.KOI8_R)
+
+    /// What the status bar menu offers, in menu order.
+    public static let choices: [String.Encoding] = [
+        .utf8, .utf16LittleEndian, .utf16BigEndian, .windowsCP1251, koi8U, koi8R,
+        .isoLatin1, .windowsCP1252, .macOSRoman,
+    ]
+
     /// Short name for the status bar ("UTF-8", "Windows-1251", "UTF-16 LE BOM").
     public var encodingName: String {
-        let base = switch encoding {
+        let base = Self.name(of: encoding)
+        return hasBOM && encoding == .utf8 ? base + " BOM" : base
+    }
+
+    public static func name(of encoding: String.Encoding) -> String {
+        switch encoding {
         case .utf8: "UTF-8"
         case .utf16LittleEndian: "UTF-16 LE"
         case .utf16BigEndian: "UTF-16 BE"
         case .utf32LittleEndian: "UTF-32 LE"
         case .utf32BigEndian: "UTF-32 BE"
         case .windowsCP1251: "Windows-1251"
+        case koi8U: "KOI8-U"
+        case koi8R: "KOI8-R"
         case .isoLatin1: "ISO-8859-1"
+        case .windowsCP1252: "Windows-1252"
+        case .macOSRoman: "Mac Roman"
         default: String.localizedName(of: encoding)
         }
-        return hasBOM && encoding == .utf8 ? base + " BOM" : base
+    }
+
+    public func canEncode(as encoding: String.Encoding) -> Bool {
+        text.canBeConverted(to: encoding)
+    }
+
+    private static func cfEncoding(_ encoding: CFStringEncodings) -> String.Encoding {
+        String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(encoding.rawValue)))
     }
 
     public func encoded() -> Data? {

@@ -80,10 +80,12 @@ enum MainMenu {
 
         main.addSubmenu("View", [
             item("Wrap Lines", #selector(EditorViewController.toggleWrapLines(_:)), "w", [.command, .option]),
+            item("Show Line Numbers", #selector(EditorViewController.toggleLineNumbers(_:)), "l", [.command, .option]),
             .separator(),
             item("Bigger", #selector(EditorViewController.makeTextBigger(_:)), "+"),
             item("Smaller", #selector(EditorViewController.makeTextSmaller(_:)), "-"),
             item("Actual Size", #selector(EditorViewController.makeTextStandardSize(_:)), "0"),
+            item("Font…", #selector(EditorViewController.showFontPanel(_:))),
             .separator(),
             item("Show Tab Bar", #selector(NSWindow.toggleTabBar(_:))),
             item("Show All Tabs", #selector(NSWindow.toggleTabOverview(_:)), "\\", [.command, .shift]),

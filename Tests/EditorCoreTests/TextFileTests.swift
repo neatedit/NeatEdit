@@ -63,6 +63,34 @@ struct TextFileTests {
         #expect(LineEnding.lf.apply(to: "a\r\nb\rc") == "a\nb\nc")
     }
 
+    @Test func decodesStrictlyInChosenEncoding() throws {
+        let cp1251 = try #require("привіт".data(using: .windowsCP1251))
+        #expect(try TextFile(data: cp1251, encoding: .windowsCP1251).text == "привіт")
+        #expect(try TextFile(data: cp1251, encoding: .isoLatin1).text == "ïðèâ³ò")
+        #expect(throws: TextFile.DecodingError.self) { try TextFile(data: cp1251, encoding: .utf8) }
+    }
+
+    @Test func chosenEncodingKeepsMatchingBOM() throws {
+        let data = Data([0xFF, 0xFE]) + "hi".data(using: .utf16LittleEndian)!
+        let file = try TextFile(data: data, encoding: .utf16LittleEndian)
+        #expect(file.text == "hi")
+        #expect(file.hasBOM)
+        #expect(file.encoded() == data)
+    }
+
+    @Test func encodingChoicesInMenuOrder() {
+        #expect(TextFile.choices.map(TextFile.name(of:)) == [
+            "UTF-8", "UTF-16 LE", "UTF-16 BE", "Windows-1251", "KOI8-U", "KOI8-R",
+            "ISO-8859-1", "Windows-1252", "Mac Roman",
+        ])
+    }
+
+    @Test func knowsWhetherTextFitsAnEncoding() {
+        #expect(!TextFile(text: "привіт").canEncode(as: .isoLatin1))
+        #expect(TextFile(text: "привіт").canEncode(as: .windowsCP1251))
+        #expect(TextFile(text: "hello").canEncode(as: .isoLatin1))
+    }
+
     @Test func textStatsCountsCharactersAndLines() {
         let stats = TextStats(text: "ab\ncd\n")
         #expect(stats.characters == 6)

@@ -20,6 +20,9 @@ struct StatusLineTests {
         )
         #expect(status.left == "Ln 2, Col 3   Pos 8   Line 5 chars")
         #expect(status.right == "11 chars, 2 lines   UTF-8   LF")
+        #expect(status.totals == "11 chars, 2 lines")
+        #expect(status.encoding == "UTF-8")
+        #expect(status.lineEnding == .lf)
     }
 
     @Test func formatsSelectionAndBigNumbersWithSeparators() {

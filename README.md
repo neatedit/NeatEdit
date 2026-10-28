@@ -4,7 +4,9 @@ A small, native macOS plain-text editor (Swift + AppKit, no dependencies).
 
 - Tabs are native macOS window tabs (⌘T / ⌘N). Unsaved tabs survive quitting — no "Save?" prompts.
 - Paste always inserts plain text exactly at the caret.
-- Status bar: line, column, position, current line length, selection size, total characters/lines, encoding, line endings.
+- Status bar: line, column, position, current line length, selection size, total characters/lines, encoding, line endings. Click the encoding to reopen the file as another encoding (or pick one for saving); click the line ending to convert LF / CRLF / CR (one ⌘Z undoes it).
+- View menu: line numbers (⌥⌘L), wrap lines (⌥⌘W), bigger / smaller (⌘+ / ⌘−), Font… (monospaced fonts only). Line numbers and wrapping are off by default.
+- Files changed on disk: an unedited tab reloads quietly (⌘Z brings the old text back). If the tab has unsaved edits, a banner offers to review the outside changes piece by piece — accept or skip each one, conflicts with your own edits are marked — or, when most of the file changed, to save your version under another name and load the new one. ⌘S and autosave never overwrite an outside change you haven't looked at. A deleted file keeps its text; saving recreates it.
 - Files are saved back in their original encoding, BOM and line endings.
 - Find & replace (⌘F / ⌥⌘F) with Coda-style numbered placeholders: ★ adds a chip to Find that matches any text on the line, and the same number in Replace puts that text back. Options (⚙): match case, regular expression (`$1` templates, `^`/`$` per line), in selection. Replace All is a single undo step.
 - New documents save as `.txt` by default.
