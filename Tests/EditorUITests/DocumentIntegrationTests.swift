@@ -185,6 +185,33 @@ final class DocumentIntegrationTests: XCTestCase {
         XCTAssertEqual(try document.data(ofType: "public.plain-text"), Data("line one\nline two\n".utf8))
     }
 
+    func testViewerReloadKeepsScrollAndSelection() throws {
+        let saved = TextDocument.largeFileThreshold
+        TextDocument.largeFileThreshold = 10
+        defer { TextDocument.largeFileThreshold = saved }
+
+        let lines = (1...500).map { "line \($0)" }.joined(separator: "\n")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).log")
+        try Data(lines.utf8).write(to: url)
+        let document = try TextDocument(contentsOf: url, ofType: "public.plain-text")
+        document.makeWindowControllers()
+        let controller = try XCTUnwrap(document.windowControllers.first?.contentViewController as? LargeFileViewController)
+        let window = try XCTUnwrap(controller.view.window)
+        window.setContentSize(NSSize(width: 400, height: 300))
+        window.layoutIfNeeded()
+
+        controller.textView.setSelection(NSRange(location: 3, length: 0), scroll: false)
+        let clip = try XCTUnwrap(controller.textView.enclosingScrollView?.contentView)
+        clip.scroll(to: NSPoint(x: 0, y: 2000))
+        let origin = clip.bounds.origin
+
+        document.diskDidChange(Data((lines + "\nline 501").utf8))
+        XCTAssertEqual(controller.model.lineIndex.lineCount, 501)
+        XCTAssertEqual(controller.textView.selection, NSRange(location: 3, length: 0))
+        XCTAssertEqual(clip.bounds.origin, origin)
+        guard case .none = document.externalState else { return XCTFail("viewer never has pending changes") }
+    }
+
     func testLargeFileLoadsQuicklyAndCaretMovesInstantly() throws {
         // ~200 MB of UTF-8 in release (`swift test -c release -Xswiftc -enable-testing`),
         // 20 MB in debug where unoptimized loops are ~40x slower.
