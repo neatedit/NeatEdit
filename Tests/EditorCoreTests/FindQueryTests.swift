@@ -101,6 +101,13 @@ struct FindQueryTests {
         #expect(replacingAll(query, in: "aaaa", scope: NSRange(location: 1, length: 2)) == "abba")
     }
 
+    @Test func listsMatchRangesUpToALimit() throws {
+        let query = try FindQuery(find: [.text("a")])
+        let text = "a a a" as NSString
+        #expect(query.ranges(in: text, scope: NSRange(location: 0, length: 5), limit: 2)
+            == [NSRange(location: 0, length: 1), NSRange(location: 2, length: 1)])
+    }
+
     @Test func countsMatches() throws {
         let query = try FindQuery(find: [.text("ab")])
         let text = "ab abab x" as NSString

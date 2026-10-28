@@ -77,6 +77,15 @@ public struct FindQuery {
         return count
     }
 
+    public func ranges(in text: NSString, scope: NSRange, limit: Int) -> [NSRange] {
+        var ranges: [NSRange] = []
+        forEachMatch(in: text, range: scope) { result in
+            ranges.append(result.range)
+            return ranges.count < limit
+        }
+        return ranges
+    }
+
     /// The first match after `selection` (the selection itself excluded), wrapping to the scope start.
     public func next(in text: NSString, after selection: NSRange, scope: NSRange, wraps: Bool = true) -> NSTextCheckingResult? {
         let start = min(max(selection.upperBound, scope.location), scope.upperBound)

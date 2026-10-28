@@ -27,8 +27,8 @@ public final class PlainTextView: NSTextView {
         isRichText = false
         importsGraphics = false
         allowsUndo = true
-        usesFindBar = true
-        isIncrementalSearchingEnabled = true
+        // Find & replace is our own bar (FindController), not NSTextFinder.
+        usesFindBar = false
         usesFontPanel = false
         smartInsertDeleteEnabled = false
         isAutomaticQuoteSubstitutionEnabled = false
@@ -45,6 +45,19 @@ public final class PlainTextView: NSTextView {
         autoresizingMask = [.width]
         textContainerInset = NSSize(width: 4, height: 6)
         setFont(font)
+    }
+
+    weak var findController: FindController?
+
+    override public func performFindPanelAction(_ sender: Any?) {
+        guard let tag = (sender as? NSValidatedUserInterfaceItem)?.tag,
+              let action = NSTextFinder.Action(rawValue: tag) else { return }
+        findController?.perform(action)
+    }
+
+    override public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(performFindPanelAction(_:)) { return findController != nil }
+        return super.validateMenuItem(menuItem)
     }
 
     public func setFont(_ font: NSFont) {

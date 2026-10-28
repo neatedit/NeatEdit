@@ -7,11 +7,12 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
     let textView: PlainTextView
     private let scrollView = NSScrollView()
     private let statusBar = StatusBar()
+    private(set) lazy var findController = FindController(textView: textView)
     var leftStatus: NSTextField { statusBar.left }
     var rightStatus: NSTextField { statusBar.right }
 
     /// Above this many UTF-16 units we only lay out what's on screen and skip
-    /// per-keystroke find highlighting; both otherwise chew through the whole file.
+    /// live find highlighting; both otherwise chew through the whole file.
     static let largeDocumentLimit = 5_000_000
 
     init(model: EditorModel) {
@@ -28,7 +29,8 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
         textView.minSize = NSSize(width: 0, height: 0)
         textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         textView.delegate = self
-        view = EditorChrome.root(scrollView: scrollView, statusBar: statusBar)
+        textView.findController = findController
+        view = EditorChrome.root(scrollView: scrollView, statusBar: statusBar, findBar: findController.bar)
 
         NotificationCenter.default.addObserver(
             self, selector: #selector(preferencesChanged), name: Preferences.didChange, object: nil)
@@ -55,7 +57,6 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
     private func attach(_ model: EditorModel) {
         model.onTotalsChanged = { [weak self] in self?.updateStatus() }
         let isLarge = model.storage.length > Self.largeDocumentLimit
-        textView.isIncrementalSearchingEnabled = !isLarge
         textView.layoutManager?.backgroundLayoutEnabled = !isLarge
         updateStatus()
     }

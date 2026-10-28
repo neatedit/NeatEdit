@@ -49,8 +49,8 @@ final class StatusBar: NSStackView {
 }
 
 enum EditorChrome {
-    /// Scroll view filling the tab, a hairline, then the status bar.
-    static func root(scrollView: NSScrollView, statusBar: StatusBar) -> NSView {
+    /// Optional find bar, scroll view filling the tab, a hairline, then the status bar.
+    static func root(scrollView: NSScrollView, statusBar: StatusBar, findBar: NSView? = nil) -> NSView {
         scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = true
         scrollView.borderType = .noBorder
@@ -59,16 +59,26 @@ enum EditorChrome {
         let separator = NSBox()
         separator.boxType = .separator
 
+        // A stack so the hidden find bar takes no space.
+        let content = NSStackView(views: [findBar, scrollView].compactMap { $0 })
+        content.orientation = .vertical
+        content.spacing = 0
+        for view in content.arrangedSubviews {
+            view.widthAnchor.constraint(equalTo: content.widthAnchor).isActive = true
+        }
+        scrollView.setContentHuggingPriority(.defaultLow, for: .vertical)
+        findBar?.setContentHuggingPriority(.required, for: .vertical)
+
         let root = NSView()
-        for sub in [scrollView, separator, statusBar] as [NSView] {
+        for sub in [content, separator, statusBar] as [NSView] {
             sub.translatesAutoresizingMaskIntoConstraints = false
             root.addSubview(sub)
         }
         NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: root.topAnchor),
-            scrollView.leadingAnchor.constraint(equalTo: root.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-            separator.topAnchor.constraint(equalTo: scrollView.bottomAnchor),
+            content.topAnchor.constraint(equalTo: root.topAnchor),
+            content.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            content.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            separator.topAnchor.constraint(equalTo: content.bottomAnchor),
             separator.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             separator.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             statusBar.topAnchor.constraint(equalTo: separator.bottomAnchor),
