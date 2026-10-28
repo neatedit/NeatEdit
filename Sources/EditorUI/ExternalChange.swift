@@ -136,9 +136,16 @@ final class ChangeReviewController: NSViewController {
 
     /// The file changed again while reviewing: keep decisions on hunks that are still there.
     func update(merge: ExternalMerge) {
+        // A hunk that kept its place (e.g. a log tail that grew) keeps its decision.
+        var byPlace: [Range<Int>: HunkDecision] = [:]
+        for hunk in self.merge.hunks {
+            if let decision = decisions[hunk.id] { byPlace[hunk.base.oldRange] = decision }
+        }
         self.merge = merge
-        let ids = Set(merge.hunks.map(\.id))
-        decisions = decisions.filter { ids.contains($0.key) }
+        decisions = [:]
+        for hunk in merge.hunks {
+            if let decision = byPlace[hunk.base.oldRange] { decisions[hunk.id] = decision }
+        }
         if isViewLoaded { rebuildRows() }
     }
 

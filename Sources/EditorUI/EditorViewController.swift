@@ -10,6 +10,7 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
     let statusBar = StatusBar()
     let banner = ExternalChangeBanner()
     private var review: ChangeReviewController?
+    private(set) var lastReplacedRange: NSRange?
     private(set) lazy var findController = FindController(textView: textView)
     var leftStatus: NSTextField { statusBar.left }
     var rightStatus: String { statusBar.rightText }
@@ -63,20 +64,16 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
     }
 
     func reload(from file: TextFile) {
-        let selection = textView.selectedRange()
         let origin = scrollView.contentView.bounds.origin
-        replaceAllText(with: file.text, actionName: "Reload from Disk") {
+        replaceAllText(with: file.text, actionName: TextDocument.reloadActionName) {
             self.setFormat(file, lineEnding: LineEnding.detect(in: file.text))
         }
-        textView.setSelectedRange(NSRange(location: min(selection.location, model.storage.length), length: 0))
         scrollView.contentView.scroll(to: origin)
         scrollView.reflectScrolledClipView(scrollView.contentView)
     }
 
     func replaceText(with text: String, actionName: String) {
-        let caret = textView.selectedRange().location
         replaceAllText(with: text, actionName: actionName)
-        textView.setSelectedRange(NSRange(location: min(caret, model.storage.length), length: 0))
     }
 
     func externalStateDidChange(_ state: TextDocument.ExternalState) {
@@ -129,20 +126,59 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
         }
     }
 
-    /// Swaps the whole text as one undo step; `alongside` runs inside the
-    /// same undo group (and must register its own undo).
+    /// Turns the text into `text` as one top-level undo step, replacing only
+    /// the part that differs (small undo entries, caret stays on its text).
+    /// `alongside` runs inside the same undo group and registers its own undo.
     private func replaceAllText(with text: String, actionName: String, alongside: () -> Void = {}) {
         guard let storage = textView.textStorage else { return }
-        let full = NSRange(location: 0, length: storage.length)
+        let range = Self.changedRange(from: storage.string as NSString, to: text as NSString)
+        let replacement = (text as NSString).substring(with: NSRange(
+            location: range.location, length: (text as NSString).length - (storage.length - range.length)))
+        let caret = textView.selectedRange().location
+        let delta = (replacement as NSString).length - range.length
+
+        // An explicit top-level group: NSDocument counts the change when it
+        // closes, here, not when an automatic per-event group closes later
+        // (which would mark a silently reloaded tab dirty again).
+        let undoManager = textView.undoManager
+        let groupsByEvent = undoManager?.groupsByEvent ?? true
+        undoManager?.groupsByEvent = false
+        defer { undoManager?.groupsByEvent = groupsByEvent }
         textView.breakUndoCoalescing()
-        textView.undoManager?.beginUndoGrouping()
+        undoManager?.beginUndoGrouping()
         alongside()
-        if textView.shouldChangeText(in: full, replacementString: text) {
-            storage.replaceCharacters(in: full, with: NSAttributedString(string: text, attributes: textView.typingAttributes))
+        if textView.shouldChangeText(in: range, replacementString: replacement) {
+            storage.replaceCharacters(in: range, with: NSAttributedString(string: replacement, attributes: textView.typingAttributes))
             textView.didChangeText()
         }
-        textView.undoManager?.endUndoGrouping()
-        textView.undoManager?.setActionName(actionName)
+        undoManager?.setActionName(actionName)
+        undoManager?.endUndoGrouping()
+        lastReplacedRange = range
+
+        let newCaret = caret <= range.location ? caret
+            : caret >= NSMaxRange(range) ? caret + delta
+            : range.location + (replacement as NSString).length
+        textView.setSelectedRange(NSRange(location: min(newCaret, storage.length), length: 0))
+    }
+
+    /// The span of `old` that differs from `new` (common prefix and suffix
+    /// trimmed), never splitting a surrogate pair or a CRLF.
+    static func changedRange(from old: NSString, to new: NSString) -> NSRange {
+        let limit = min(old.length, new.length)
+        var prefix = 0
+        while prefix < limit, old.character(at: prefix) == new.character(at: prefix) { prefix += 1 }
+        while prefix > 0, Self.splitsPair(old, at: prefix) || Self.splitsPair(new, at: prefix) { prefix -= 1 }
+        var suffix = 0
+        while suffix < limit - prefix,
+              old.character(at: old.length - 1 - suffix) == new.character(at: new.length - 1 - suffix) { suffix += 1 }
+        while suffix > 0, Self.splitsPair(old, at: old.length - suffix) || Self.splitsPair(new, at: new.length - suffix) { suffix -= 1 }
+        return NSRange(location: prefix, length: old.length - suffix - prefix)
+    }
+
+    private static func splitsPair(_ text: NSString, at index: Int) -> Bool {
+        guard index > 0, index < text.length else { return false }
+        let before = text.character(at: index - 1), after = text.character(at: index)
+        return UTF16.isLeadSurrogate(before) && UTF16.isTrailSurrogate(after) || (before == 0x0D && after == 0x0A)
     }
 
     private func setFormat(_ file: TextFile, lineEnding: LineEnding) {

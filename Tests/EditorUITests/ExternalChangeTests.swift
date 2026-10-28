@@ -105,7 +105,7 @@ final class ExternalChangeTests: XCTestCase {
     }
 
     private func diskDate(_ url: URL) throws -> Date? {
-        try url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+        TextDocument.modificationDate(of: url)
     }
 
     func testBannerShowsForEditedTab() throws {
@@ -315,5 +315,160 @@ final class ExternalChangeTests: XCTestCase {
         try changeOnDisk("new", at: url, document: document)
         XCTAssertTrue(controller.banner.isHidden)
         XCTAssertEqual(controller.textView.string, "new")
+    }
+
+    // MARK: Review findings
+
+    private func spin() { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+
+    /// As in the app: the check lands from a main-queue block, then the run loop turns.
+    private func diskChangesLikeTheApp(_ text: String, at url: URL, document: TextDocument) throws {
+        try Data(text.utf8).write(to: url)
+        try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(5)], ofItemAtPath: url.path)
+        let data = try Data(contentsOf: url)
+        DispatchQueue.main.async { document.diskDidChange(data) }
+        spin()
+    }
+
+    func testCleanReloadStaysCleanAfterRunLoopTurns() throws {
+        let (document, controller, url) = try open("a")
+        try diskChangesLikeTheApp("a\nb", at: url, document: document)
+        XCTAssertEqual(controller.textView.string, "a\nb")
+        XCTAssertFalse(document.isDocumentEdited)
+
+        // A second change still reloads silently instead of raising the banner.
+        try diskChangesLikeTheApp("a\nb\nc", at: url, document: document)
+        XCTAssertEqual(controller.textView.string, "a\nb\nc")
+        XCTAssertTrue(controller.banner.isHidden)
+    }
+
+    func testUndoAfterReloadMarksTabEditedAndSaves() throws {
+        let (document, controller, url) = try open("a")
+        try diskChangesLikeTheApp("b", at: url, document: document)
+        document.undoManager?.undo()
+        spin()
+        XCTAssertEqual(controller.textView.string, "a")
+        XCTAssertTrue(document.isDocumentEdited)
+        XCTAssertNil(save(document, to: url, .saveOperation))
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "a")
+    }
+
+    func testChangeArrivingDuringSaveSurvivesTheSave() throws {
+        let (document, controller, url) = try open("a\nb")
+        type("!", at: 0, in: controller)
+        let done = expectation(description: "save")
+        document.save(to: url, ofType: "public.plain-text", for: .saveOperation) { _ in done.fulfill() }
+        document.diskDidChange(Data("a\nB".utf8))
+        wait(for: [done], timeout: 5)
+        XCTAssertNotNil(merge(document), "a change seen mid-save must not be cleared by the save")
+    }
+
+    func testStaleReadFromBeforeOurSaveIsDropped() throws {
+        let (document, controller, url) = try open("a")
+        let readStamp = document.diskReadStamp
+        type("b", at: 1, in: controller)
+        XCTAssertNil(save(document, to: url, .saveOperation))
+        document.diskReadFinished(Data("old outside".utf8), modificationDate: nil, stamp: readStamp)
+        XCTAssertEqual(controller.textView.string, "ab")
+    }
+
+    func testRevertClearsPendingChange() throws {
+        let (document, controller, url) = try open("a\nb")
+        type("!", at: 0, in: controller)
+        try changeOnDisk("a\nB", at: url, document: document)
+        try document.read(from: Data(contentsOf: url), ofType: "public.plain-text")
+        spin()
+        XCTAssertEqual(controller.textView.string, "a\nB")
+        XCTAssertTrue(controller.banner.isHidden)
+        guard case .none = document.externalState else { return XCTFail("revert resolves the change") }
+    }
+
+    func testCleanTabFollowsLineEndingOnlyChange() throws {
+        let (document, controller, _) = try open("a\nb")
+        document.diskDidChange(Data("a\r\nb".utf8))
+        XCTAssertEqual(controller.statusBar.lineEndingButton.title, "CRLF")
+        XCTAssertEqual(controller.textView.string, "a\r\nb")
+    }
+
+    func testCleanTabFollowsEncodingConversion() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).txt")
+        try "б".data(using: .windowsCP1251)!.write(to: url)
+        let document = try TextDocument(contentsOf: url, ofType: "public.plain-text")
+        document.makeWindowControllers()
+        let controller = try XCTUnwrap(document.windowControllers.first?.contentViewController as? EditorViewController)
+        _ = controller.view
+        XCTAssertEqual(controller.statusBar.encodingButton.title, "Windows-1251")
+
+        document.diskDidChange(Data("б".utf8))
+        XCTAssertEqual(controller.textView.string, "б")
+        XCTAssertEqual(controller.statusBar.encodingButton.title, "UTF-8")
+    }
+
+    func testAsciiChangeKeepsLegacyEncoding() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).txt")
+        try "б".data(using: .windowsCP1251)!.write(to: url)
+        let document = try TextDocument(contentsOf: url, ofType: "public.plain-text")
+        document.makeWindowControllers()
+        let controller = try XCTUnwrap(document.windowControllers.first?.contentViewController as? EditorViewController)
+        _ = controller.view
+        document.diskDidChange(Data("plain ascii".utf8))
+        XCTAssertEqual(controller.statusBar.encodingButton.title, "Windows-1251")
+    }
+
+    func testSaveMyVersionOverOriginalIsRefused() throws {
+        let (document, controller, url) = try open("1\n2\n3\n4")
+        type("!", at: 0, in: controller)
+        try changeOnDisk("a\nb\nc\n4", at: url, document: document)
+        XCTAssertThrowsError(try document.saveMyVersionAs(url: url))
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "a\nb\nc\n4")
+        XCTAssertNotNil(merge(document))
+    }
+
+    func testSameUrlSaveAsWhileChangedIsBlocked() throws {
+        let (document, controller, url) = try open("a\nb")
+        type("!", at: 0, in: controller)
+        try changeOnDisk("a\nB", at: url, document: document)
+        XCTAssertEqual((save(document, to: url, .saveAsOperation) as? CocoaError)?.code, .userCancelled)
+        XCTAssertEqual((save(document, to: url, .saveToOperation) as? CocoaError)?.code, .userCancelled)
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "a\nB")
+    }
+
+    func testGrowingTailKeepsDecision() {
+        let base = "1\n2\n3\n4\n5\n6"
+        let first = ExternalMerge(base: base, mine: base, disk: base + "\n7")
+        let review = ChangeReviewController(merge: first)
+        _ = review.view
+        review.decide(first.hunks[0].id, .accept)
+        let second = ExternalMerge(base: base, mine: base, disk: base + "\n7\n8")
+        review.update(merge: second)
+        XCTAssertEqual(review.decisions, [second.hunks[0].id: .accept])
+    }
+
+    func testSilentReloadUndoStoresOnlyTheChange() throws {
+        let (document, controller, _) = try open("keep\nkeep\nkeep")
+        controller.textView.setSelectedRange(NSRange(location: 14, length: 0))
+        document.diskDidChange(Data("new\nkeep\nkeep\nkeep".utf8))
+        // Caret follows its text when lines are inserted above it.
+        XCTAssertEqual(controller.textView.selectedRange().location, 18)
+        XCTAssertEqual(controller.lastReplacedRange, NSRange(location: 0, length: 0))
+    }
+
+    func testBigDocumentsDiffOffTheMainThreadAndKeepOnlyTheLatest() throws {
+        let saved = TextDocument.syncMergeLimit
+        TextDocument.syncMergeLimit = 0
+        defer { TextDocument.syncMergeLimit = saved }
+        let (document, controller, _) = try open("a\nb\nc\nd")
+        type("!", at: 0, in: controller)
+        document.diskDidChange(Data("a\nb\nc\nD1".utf8))
+        document.diskDidChange(Data("a\nb\nc\nD2".utf8))
+        XCTAssertNil(merge(document), "computed in the background, not inline")
+        let done = expectation(description: "merge")
+        func poll() {
+            if merge(document) != nil { done.fulfill() } else { DispatchQueue.main.asyncAfter(deadline: .now() + 0.01, execute: poll) }
+        }
+        poll()
+        wait(for: [done], timeout: 5)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        XCTAssertEqual(merge(document)?.hunks.first?.base.newLines, ["D2"])
     }
 }

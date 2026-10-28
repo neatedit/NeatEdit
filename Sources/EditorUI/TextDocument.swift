@@ -29,6 +29,11 @@ public final class TextDocument: NSDocument {
     private var diskCheck: DispatchWorkItem?
     /// Modification date of the disk version behind `externalState`.
     private var pendingDiskDate: Date?
+    /// Bumped by every completed save: a disk read started before it may
+    /// have seen the file before our own write, so its result is stale.
+    private(set) var diskReadStamp = 0
+    /// Edited documents longer than this (UTF-16 units) are diffed in the background.
+    static var syncMergeLimit = 1_000_000
 
     /// Documents longer than this (UTF-16 units, ~20 MB of text) open in the
     /// read-only viewer, which stays instant no matter the size.
@@ -61,9 +66,9 @@ public final class TextDocument: NSDocument {
         completionHandler: @escaping (Error?) -> Void
     ) {
         // Never write over a disk change the user hasn't seen.
-        if hasUnresolvedDiskChange, url == fileURL {
+        if hasUnresolvedDiskChange, Self.sameFile(url, fileURL) {
             switch saveOperation {
-            case .saveOperation:
+            case .saveOperation, .saveAsOperation, .saveToOperation:
                 DispatchQueue.main.async { self.showExternalChangeResolution() }
                 return completionHandler(CocoaError(.userCancelled))
             case .autosaveInPlaceOperation:
@@ -74,14 +79,33 @@ public final class TextDocument: NSDocument {
         }
         // What lands on disk becomes the new base, unless it went to another file.
         let snapshot = saveOperation == .saveToOperation ? nil : model.map { Self.normalized($0.storage.string) }
+        saveInFlight += 1
         super.save(to: url, ofType: typeName, for: saveOperation) { [weak self] error in
+            self?.saveInFlight -= 1
             if error == nil, saveOperation != .saveToOperation, let self {
+                self.diskReadStamp += 1
                 if let snapshot, !self.isViewer { self.baseText = snapshot }
-                // Saved over (or recreated, or moved to) the file: nothing left pending.
-                self.externalState = .none
+                self.savedOverExternalState()
             }
             completionHandler(error)
         }
+    }
+
+    /// After a save: a pending change from before the save is resolved (we
+    /// saved over it or moved away), but one that arrived during the save is
+    /// re-diffed against what we just wrote and stays pending.
+    private func savedOverExternalState() {
+        switch externalState {
+        case .changed(_, let disk) where pendingArrivedDuringSave:
+            if Self.normalized(disk.text) == baseText {
+                externalState = .none
+            } else if let model {
+                externalState = .changed(ExternalMerge(base: baseText, mine: model.storage.string, disk: disk.text), disk: disk)
+            }
+        default:
+            externalState = .none
+        }
+        pendingArrivedDuringSave = false
     }
 
     /// Periodic autosaves skip quietly; the one before closing or quitting
@@ -91,6 +115,14 @@ public final class TextDocument: NSDocument {
             return super.autosave(withImplicitCancellability: autosavingIsImplicitlyCancellable, completionHandler: completionHandler)
         }
         completionHandler(autosavingIsImplicitlyCancellable ? CocoaError(.userCancelled) : unresolvedChangeError())
+    }
+
+    private var pendingArrivedDuringSave = false
+    private var saveInFlight = 0
+
+    private static func sameFile(_ a: URL?, _ b: URL?) -> Bool {
+        guard let a, let b else { return false }
+        return a.standardizedFileURL.resolvingSymlinksInPath() == b.standardizedFileURL.resolvingSymlinksInPath()
     }
 
     private var hasUnresolvedDiskChange: Bool {
@@ -194,20 +226,28 @@ public final class TextDocument: NSDocument {
         diskCheck?.cancel()
         let work = DispatchWorkItem { [weak self] in
             guard let self, let url = self.fileURL else { return }
+            let stamp = self.diskReadStamp
             DispatchQueue.global(qos: .userInitiated).async {
                 var data: Data?
                 var date: Date?
                 NSFileCoordinator(filePresenter: self).coordinate(readingItemAt: url, options: .withoutChanges, error: nil) { url in
                     data = try? Data(contentsOf: url)
-                    date = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+                    date = Self.modificationDate(of: url)
                 }
                 // Unreadable but still there (permissions, a write in progress) is not "deleted".
                 if data == nil, FileManager.default.fileExists(atPath: url.path) { return }
-                DispatchQueue.main.async { self.diskDidChange(data, modificationDate: date) }
+                DispatchQueue.main.async { self.diskReadFinished(data, modificationDate: date, stamp: stamp) }
             }
         }
         diskCheck = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
+    }
+
+    /// A background read finished. If we saved since it started, it may
+    /// predate our own write: read again instead of trusting it.
+    func diskReadFinished(_ data: Data?, modificationDate: Date?, stamp: Int) {
+        guard stamp == diskReadStamp else { return scheduleDiskCheck() }
+        diskDidChange(data, modificationDate: modificationDate)
     }
 
     /// The file on disk now holds `data` (nil: it's gone). A clean tab
@@ -218,16 +258,27 @@ public final class TextDocument: NSDocument {
             externalState = .deleted
             return
         }
-        guard let disk = (try? TextFile(data: data, encoding: model.file.encoding)) ?? (try? TextFile(data: data)) else { return }
-        let date = modificationDate ?? fileURL.flatMap {
-            try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
-        }
+        guard let disk = Self.decode(data, preferring: model.file.encoding) else { return }
+        let date = modificationDate ?? fileURL.flatMap(Self.modificationDate(of:))
 
         if isViewer {
             install(EditorModel(file: disk))
             fileModificationDate = date
             return
         }
+
+        if !isDocumentEdited {
+            // Clean tab: follow the disk exactly, including line endings and encoding.
+            let same = disk.text == model.storage.string && disk.encoding == model.file.encoding && disk.hasBOM == model.file.hasBOM
+            if !same {
+                reloadClean(from: disk)
+            }
+            baseText = Self.normalized(disk.text)
+            fileModificationDate = date
+            if case .none = externalState {} else { externalState = .none }
+            return
+        }
+
         let diskText = Self.normalized(disk.text)
         guard diskText != baseText else {
             // Back to what we already know (or the file reappeared as it was).
@@ -235,22 +286,50 @@ public final class TextDocument: NSDocument {
             fileModificationDate = date
             return
         }
-
-        if isDocumentEdited {
-            pendingDiskDate = date
-            // Saves are gated by `externalState`; keep NSDocument's own
-            // "changed by another application" check out of the way.
-            fileModificationDate = date
-            externalState = .changed(ExternalMerge(base: baseText, mine: model.storage.string, disk: disk.text), disk: disk)
-        } else {
-            for controller in windowControllers {
-                (controller.contentViewController as? DocumentContent)?.reload(from: disk)
-            }
-            baseText = diskText
-            fileModificationDate = date
-            updateChangeCount(.changeCleared)
-            externalState = .none
+        pendingDiskDate = date
+        // Saves are gated by `externalState`; keep NSDocument's own
+        // "changed by another application" check out of the way.
+        fileModificationDate = date
+        pendingArrivedDuringSave = saveInFlight > 0
+        mergeGeneration += 1
+        let generation = mergeGeneration
+        let base = baseText
+        let mine = model.storage.string
+        guard mine.utf16.count > Self.syncMergeLimit else {
+            externalState = .changed(ExternalMerge(base: base, mine: mine, disk: disk.text), disk: disk)
+            return
         }
+        // Big document: diff off the main thread; only the latest change counts.
+        DispatchQueue.global(qos: .userInitiated).async {
+            let merge = ExternalMerge(base: base, mine: mine, disk: disk.text)
+            DispatchQueue.main.async {
+                guard generation == self.mergeGeneration, self.isDocumentEdited else { return }
+                self.externalState = .changed(merge, disk: disk)
+            }
+        }
+    }
+
+    private var mergeGeneration = 0
+
+    /// Straight from the file system: URL resource values are cached and can
+    /// be stale within a run loop pass.
+    static func modificationDate(of url: URL) -> Date? {
+        (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
+    }
+
+    /// BOM or real UTF-8 wins; plain ASCII keeps the tab's (ASCII-compatible)
+    /// encoding; anything else is tried as the tab's encoding first.
+    static func decode(_ data: Data, preferring encoding: String.Encoding) -> TextFile? {
+        let detected = try? TextFile(data: data)
+        if let detected, detected.hasBOM { return detected }
+        let isASCII = data.allSatisfy { $0 < 0x80 }
+        let asciiCompatible = ![String.Encoding.utf16, .utf16LittleEndian, .utf16BigEndian, .utf32, .utf32LittleEndian, .utf32BigEndian]
+            .contains(encoding)
+        if isASCII {
+            return asciiCompatible ? (try? TextFile(data: data, encoding: encoding)) ?? detected : detected
+        }
+        if let detected, detected.encoding == .utf8 { return detected }
+        return (try? TextFile(data: data, encoding: encoding)) ?? detected
     }
 
     /// Brings the accepted hunks into the text as one undo step. The tab
@@ -277,11 +356,39 @@ public final class TextDocument: NSDocument {
     /// Writes my text to `url`, then shows the disk version in this tab.
     func saveMyVersionAs(url: URL) throws {
         guard case .changed(_, let disk) = externalState, let model else { return }
+        guard !Self.sameFile(url, fileURL) else {
+            throw NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileWriteNoPermission.rawValue, userInfo: [
+                NSLocalizedDescriptionKey: "Choose another name for your version.",
+                NSLocalizedRecoverySuggestionErrorKey: "This is the file that changed on disk; saving here would overwrite those changes.",
+            ])
+        }
         try model.encodedData().write(to: url, options: .atomic)
+        reloadClean(from: disk)
+        adoptDiskAsBase(disk)
+    }
+
+    /// Reloading from disk is undoable, so NSDocument counts it as an edit
+    /// (later, from its own queued block). The tab shows exactly what's on
+    /// disk, so that one count is dropped: only while our reload is still the
+    /// latest undo step, never for the user's own typing or for undo/redo.
+    override public func updateChangeCount(_ change: NSDocument.ChangeType) {
+        if change == .changeDone, let undoManager, undoManager.undoActionName == Self.reloadActionName,
+           !undoManager.isUndoing, !undoManager.isRedoing, reloadsAwaitingCount > 0 {
+            reloadsAwaitingCount -= 1
+            return
+        }
+        super.updateChangeCount(change)
+    }
+
+    static let reloadActionName = "Reload from Disk"
+    private var reloadsAwaitingCount = 0
+
+    /// Shows the disk version in the tab as one undo step and leaves it clean.
+    private func reloadClean(from disk: TextFile) {
+        reloadsAwaitingCount = 1
         for controller in windowControllers {
             (controller.contentViewController as? DocumentContent)?.reload(from: disk)
         }
-        adoptDiskAsBase(disk)
         updateChangeCount(.changeCleared)
     }
 
@@ -292,6 +399,7 @@ public final class TextDocument: NSDocument {
     }
 
     private func adoptDiskAsBase(_ disk: TextFile) {
+        mergeGeneration += 1
         baseText = Self.normalized(disk.text)
         // NSDocument compares this with the file before saving; matching it
         // means no "changed by another application" alert for a decided change.
@@ -325,6 +433,8 @@ public final class TextDocument: NSDocument {
             return self.prepared
         }) else { return }
         install(EditorModel(prepared: prepared))
+        // Revert: the tab now shows the disk, so nothing is pending.
+        if case .none = externalState {} else { externalState = .none }
     }
 
     private func install(_ newModel: EditorModel) {
