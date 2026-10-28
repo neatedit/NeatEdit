@@ -32,6 +32,8 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
         textView.delegate = self
         textView.findController = findController
         view = EditorChrome.root(scrollView: scrollView, statusBar: statusBar, findBar: findController.bar)
+        statusBar.encodingButton.target = self
+        statusBar.encodingButton.action = #selector(showEncodingMenu(_:))
 
         NotificationCenter.default.addObserver(
             self, selector: #selector(preferencesChanged), name: Preferences.didChange, object: nil)
@@ -110,6 +112,45 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
         Preferences.adoptFontPanelChoice(manager.convert(Preferences.font))
     }
     func validModesForFontPanel(_ fontPanel: NSFontPanel) -> NSFontPanel.ModeMask { [.collection, .face, .size] }
+
+    var document: TextDocument? { view.window?.windowController?.document as? TextDocument }
+
+    @objc func showEncodingMenu(_ sender: NSButton) {
+        StatusBar.pop(encodingMenu(), under: sender)
+    }
+
+    @objc func reopenWithEncoding(_ sender: NSMenuItem) {
+        guard let encoding = EditorChrome.encoding(of: sender) else { return }
+        document?.reopenAskingFirst(with: encoding, in: view.window)
+    }
+
+    func encodingMenu() -> NSMenu {
+        EditorChrome.encodingMenu(
+            current: model.file.encoding,
+            reopen: document?.fileURL == nil ? nil : #selector(reopenWithEncoding(_:)),
+            save: #selector(saveWithEncoding(_:)),
+            target: self)
+    }
+
+    @objc func saveWithEncoding(_ sender: NSMenuItem) {
+        guard let encoding = EditorChrome.encoding(of: sender), !applySaveEncoding(encoding),
+              let window = view.window else { return }
+        let alert = NSAlert()
+        alert.messageText = "This text can't be saved as \(TextFile.name(of: encoding))."
+        alert.informativeText = "Some characters don't exist in that encoding. The encoding was not changed."
+        alert.beginSheetModal(for: window)
+    }
+
+    /// Switches the encoding used for saving; false when the text doesn't fit.
+    @discardableResult
+    func applySaveEncoding(_ encoding: String.Encoding) -> Bool {
+        guard encoding != model.file.encoding else { return true }
+        guard TextFile(text: model.storage.string).canEncode(as: encoding) else { return false }
+        model.setEncoding(encoding)
+        document?.updateChangeCount(.changeDone)
+        updateStatus()
+        return true
+    }
 
     @objc func chooseLineEnding(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String, let ending = LineEnding(rawValue: raw) else { return }

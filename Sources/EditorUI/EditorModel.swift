@@ -117,6 +117,13 @@ public final class EditorModel: NSObject, NSTextStorageDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
     }
 
+    /// Encoding for the next save. UTF-16 always gets a BOM so it can be
+    /// recognized when the file is opened again.
+    public func setEncoding(_ encoding: String.Encoding) {
+        file.encoding = encoding
+        file.hasBOM = encoding == .utf16LittleEndian || encoding == .utf16BigEndian
+    }
+
     /// Bytes to write: original encoding, BOM and line endings. Falls back to
     /// UTF-8 when the text gained characters the original encoding can't hold.
     public func encodedData() throws -> Data {

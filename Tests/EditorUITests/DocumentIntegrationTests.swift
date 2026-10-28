@@ -84,6 +84,61 @@ final class DocumentIntegrationTests: XCTestCase {
         XCTAssertEqual(menu.items.map(\.state), [.on, .off, .off])
     }
 
+    private func openFile(_ data: Data, name: String) throws -> (TextDocument, EditorViewController) {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString)-\(name)")
+        try data.write(to: url)
+        let document = try TextDocument(contentsOf: url, ofType: "public.plain-text")
+        document.makeWindowControllers()
+        let controller = try XCTUnwrap(document.windowControllers.first?.contentViewController as? EditorViewController)
+        _ = controller.view
+        return (document, controller)
+    }
+
+    func testReopenWithEncodingRedecodesFileBytes() throws {
+        let (document, controller) = try openFile("привіт".data(using: .windowsCP1251)!, name: "cp1251.txt")
+        XCTAssertEqual(controller.textView.string, "привіт")
+
+        try document.reopen(with: .isoLatin1)
+        XCTAssertEqual(controller.textView.string, "ïðèâ³ò")
+        XCTAssertEqual(controller.statusBar.encodingButton.title, "ISO-8859-1")
+        XCTAssertFalse(document.isDocumentEdited)
+
+        XCTAssertThrowsError(try document.reopen(with: .utf8))
+        XCTAssertEqual(controller.textView.string, "ïðèâ³ò")
+
+        try document.reopen(with: .windowsCP1251)
+        XCTAssertEqual(controller.textView.string, "привіт")
+    }
+
+    func testSaveWithEncodingChangesBytesAndMarksEdited() throws {
+        let (document, controller) = try open(Data("hi".utf8))
+        XCTAssertTrue(controller.applySaveEncoding(.utf16LittleEndian))
+        drainMainQueue()
+        XCTAssertEqual(try document.data(ofType: "public.plain-text"), Data([0xFF, 0xFE, 0x68, 0x00, 0x69, 0x00]))
+        XCTAssertEqual(controller.statusBar.encodingButton.title, "UTF-16 LE")
+        XCTAssertTrue(document.isDocumentEdited)
+    }
+
+    func testSaveWithEncodingRefusesTextThatDoesNotFit() throws {
+        let (document, controller) = try open(Data("привіт".utf8))
+        XCTAssertFalse(controller.applySaveEncoding(.isoLatin1))
+        XCTAssertEqual(controller.statusBar.encodingButton.title, "UTF-8")
+        XCTAssertFalse(document.isDocumentEdited)
+    }
+
+    func testEncodingMenuSections() throws {
+        let (_, untitled) = try open(Data("x".utf8))
+        let saveOnly = untitled.encodingMenu()
+        XCTAssertEqual(saveOnly.items.first?.title, "Save with Encoding")
+        XCTAssertEqual(saveOnly.items.filter { $0.state == .on }.map(\.title), ["UTF-8"])
+
+        let (_, file) = try openFile(Data("x".utf8), name: "x.txt")
+        let both = file.encodingMenu()
+        XCTAssertEqual(both.items.first?.title, "Reopen with Encoding")
+        XCTAssertEqual(both.items.filter(\.isSectionHeader).map(\.title), ["Reopen with Encoding", "Save with Encoding"])
+        XCTAssertEqual(both.items.count, 2 + 1 + 2 * TextFile.choices.count)
+    }
+
     func testEditsMarkDocumentDirty() throws {
         let (document, controller) = try open(Data("x".utf8))
         XCTAssertFalse(document.isDocumentEdited)

@@ -139,6 +139,29 @@ enum EditorChrome {
         return root
     }
 
+    /// "Reopen with Encoding" (files on disk only) and "Save with Encoding"
+    /// sections; items carry the encoding's raw value and call `target`.
+    static func encodingMenu(current: String.Encoding, reopen: Selector?, save: Selector?, target: AnyObject) -> NSMenu {
+        let menu = NSMenu()
+        for (title, action) in [("Reopen with Encoding", reopen), ("Save with Encoding", save)] {
+            guard let action else { continue }
+            if !menu.items.isEmpty { menu.addItem(.separator()) }
+            menu.addItem(.sectionHeader(title: title))
+            for encoding in TextFile.choices {
+                let item = NSMenuItem(title: TextFile.name(of: encoding), action: action, keyEquivalent: "")
+                item.target = target
+                item.representedObject = encoding.rawValue
+                item.state = encoding == current ? .on : .off
+                menu.addItem(item)
+            }
+        }
+        return menu
+    }
+
+    static func encoding(of item: NSMenuItem) -> String.Encoding? {
+        (item.representedObject as? UInt).map(String.Encoding.init(rawValue:))
+    }
+
     /// Sheet asking for "line" or "line:column"; calls back only with valid input.
     static func askForLine(on window: NSWindow, _ completion: @escaping (GoToLine) -> Void) {
         let alert = NSAlert()

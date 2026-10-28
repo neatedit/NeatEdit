@@ -65,6 +65,39 @@ public final class TextDocument: NSDocument {
         return true
     }
 
+    /// Decodes the file on disk again, exactly as `encoding`. Throws (and
+    /// leaves the tab alone) when the bytes aren't valid in that encoding.
+    func reopen(with encoding: String.Encoding) throws {
+        guard let fileURL else { return }
+        let file = try TextFile(data: Data(contentsOf: fileURL), encoding: encoding)
+        install(EditorModel(file: file))
+        undoManager?.removeAllActions()
+        updateChangeCount(.changeCleared)
+    }
+
+    /// Menu entry point: confirms first when unsaved edits would be lost.
+    func reopenAskingFirst(with encoding: String.Encoding, in window: NSWindow?) {
+        let reopen = { [weak self] in
+            do {
+                try self?.reopen(with: encoding)
+            } catch {
+                let alert = NSAlert()
+                alert.messageText = "The file isn't valid \(TextFile.name(of: encoding))."
+                alert.informativeText = "The text was left as it is."
+                if let window { alert.beginSheetModal(for: window) } else { alert.runModal() }
+            }
+        }
+        guard isDocumentEdited, let window else { return reopen() }
+        let alert = NSAlert()
+        alert.messageText = "Reopen as \(TextFile.name(of: encoding))?"
+        alert.informativeText = "Unsaved changes in this tab will be lost."
+        alert.addButton(withTitle: "Reopen")
+        alert.addButton(withTitle: "Cancel")
+        alert.beginSheetModal(for: window) { response in
+            if response == .alertFirstButtonReturn { reopen() }
+        }
+    }
+
     private func currentModel() -> EditorModel {
         if let model { return model }
         let prepared = preparedLock.withLock { () -> EditorModel.Prepared? in
@@ -81,7 +114,10 @@ public final class TextDocument: NSDocument {
             defer { self.prepared = nil }
             return self.prepared
         }) else { return }
-        let newModel = EditorModel(prepared: prepared)
+        install(EditorModel(prepared: prepared))
+    }
+
+    private func install(_ newModel: EditorModel) {
         model = newModel
         for controller in windowControllers {
             (controller.contentViewController as? DocumentContent)?.replaceModel(newModel)

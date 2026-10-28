@@ -25,6 +25,8 @@ final class LargeFileViewController: NSViewController, DocumentContent, NSMenuIt
         scrollView.documentView = textView
         view = EditorChrome.root(scrollView: scrollView, statusBar: statusBar)
         statusBar.canChangeLineEnding = false
+        statusBar.encodingButton.target = self
+        statusBar.encodingButton.action = #selector(showEncodingMenu(_:))
 
         textFinder.client = textView
         textFinder.findBarContainer = scrollView
@@ -73,6 +75,22 @@ final class LargeFileViewController: NSViewController, DocumentContent, NSMenuIt
         Preferences.adoptFontPanelChoice(manager.convert(Preferences.font))
     }
     func validModesForFontPanel(_ fontPanel: NSFontPanel) -> NSFontPanel.ModeMask { [.collection, .face, .size] }
+
+    var document: TextDocument? { view.window?.windowController?.document as? TextDocument }
+
+    @objc func showEncodingMenu(_ sender: NSButton) {
+        StatusBar.pop(encodingMenu(), under: sender)
+    }
+
+    @objc func reopenWithEncoding(_ sender: NSMenuItem) {
+        guard let encoding = EditorChrome.encoding(of: sender) else { return }
+        document?.reopenAskingFirst(with: encoding, in: view.window)
+    }
+
+    /// Read-only: only re-decoding is offered.
+    func encodingMenu() -> NSMenu {
+        EditorChrome.encodingMenu(current: model.file.encoding, reopen: #selector(reopenWithEncoding(_:)), save: nil, target: self)
+    }
 
     @objc func goToLine(_ sender: Any?) {
         guard let window = view.window else { return }
