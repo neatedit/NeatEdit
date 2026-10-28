@@ -5,7 +5,8 @@ import EditorCore
 final class EditorViewController: NSViewController, DocumentContent, NSTextViewDelegate, NSMenuItemValidation {
     private(set) var model: EditorModel
     let textView: PlainTextView
-    private let scrollView = NSScrollView()
+    let scrollView = NSScrollView()
+    private(set) var lineNumberRuler: LineNumberRuler?
     private let statusBar = StatusBar()
     private(set) lazy var findController = FindController(textView: textView)
     var leftStatus: NSTextField { statusBar.left }
@@ -40,6 +41,7 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
     override func viewDidAppear() {
         super.viewDidAppear()
         textView.wrapsLines = Preferences.wrapsLines
+        applyLineNumbers()
         view.window?.makeFirstResponder(textView)
     }
 
@@ -79,6 +81,22 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
     @objc private func preferencesChanged() {
         textView.setFont(Preferences.font)
         textView.wrapsLines = Preferences.wrapsLines
+        applyLineNumbers()
+    }
+
+    private func applyLineNumbers() {
+        guard Preferences.showsLineNumbers else {
+            scrollView.rulersVisible = false
+            return
+        }
+        if lineNumberRuler == nil {
+            let ruler = LineNumberRuler(textView: textView) { [unowned self] in self.model }
+            scrollView.verticalRulerView = ruler
+            scrollView.hasVerticalRuler = true
+            lineNumberRuler = ruler
+        }
+        lineNumberRuler?.needsDisplay = true
+        scrollView.rulersVisible = true
     }
 
     @objc func makeTextBigger(_ sender: Any?) { Preferences.fontSize += 1 }
