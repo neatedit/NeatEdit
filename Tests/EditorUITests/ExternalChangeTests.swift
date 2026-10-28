@@ -221,4 +221,99 @@ final class ExternalChangeTests: XCTestCase {
         XCTAssertFalse(controller.banner.isHidden)
         XCTAssertEqual(merge(document)?.hunks.first?.base.newLines.count, 11)
     }
+
+    // MARK: Saving while a change is pending, deleted files
+
+    private func save(_ document: TextDocument, to url: URL, _ operation: NSDocument.SaveOperationType) -> Error? {
+        let done = expectation(description: "save")
+        var result: Error?
+        document.save(to: url, ofType: "public.plain-text", for: operation) { error in
+            result = error
+            done.fulfill()
+        }
+        wait(for: [done], timeout: 5)
+        return result
+    }
+
+    func testSaveWhileChangedDoesNotWrite() throws {
+        let (document, controller, url) = try open("a\nb")
+        type("!", at: 0, in: controller)
+        try changeOnDisk("a\nB", at: url, document: document)
+        let error = save(document, to: url, .saveOperation)
+        XCTAssertEqual((error as? CocoaError)?.code, .userCancelled)
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "a\nB")
+        XCTAssertTrue(document.isDocumentEdited)
+    }
+
+    func testAutosaveWhileChangedDoesNotWrite() throws {
+        let (document, controller, url) = try open("a\nb")
+        type("!", at: 0, in: controller)
+        try changeOnDisk("a\nB", at: url, document: document)
+
+        let periodic = expectation(description: "periodic autosave")
+        document.autosave(withImplicitCancellability: true) { _ in periodic.fulfill() }
+        wait(for: [periodic], timeout: 5)
+        XCTAssertNotNil(save(document, to: url, .autosaveInPlaceOperation))
+
+        let closing = expectation(description: "autosave before close")
+        var closingError: Error?
+        document.autosave(withImplicitCancellability: false) { error in
+            closingError = error
+            closing.fulfill()
+        }
+        wait(for: [closing], timeout: 5)
+        XCTAssertNotNil(closingError, "closing must not silently drop either version")
+
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "a\nB")
+        XCTAssertTrue(document.isDocumentEdited)
+        XCTAssertEqual(controller.textView.string, "!a\nb")
+    }
+
+    func testSaveAsWhileChangedIsAllowedAndClearsTheChange() throws {
+        let (document, controller, url) = try open("a\nb")
+        type("!", at: 0, in: controller)
+        try changeOnDisk("a\nB", at: url, document: document)
+        let other = url.deletingLastPathComponent().appendingPathComponent("\(UUID().uuidString).txt")
+        XCTAssertNil(save(document, to: other, .saveAsOperation))
+        XCTAssertEqual(try String(contentsOf: other, encoding: .utf8), "!a\nb")
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "a\nB")
+        guard case .none = document.externalState else { return XCTFail("a different file has no pending change") }
+    }
+
+    func testDeletedFileShowsBannerAndSaveRecreates() throws {
+        let (document, controller, url) = try open("a")
+        try FileManager.default.removeItem(at: url)
+        document.diskDidChange(nil)
+        XCTAssertFalse(controller.banner.isHidden)
+        XCTAssertEqual(controller.banner.message.stringValue, "Deleted from disk")
+        XCTAssertTrue(controller.banner.primaryButton.isHidden)
+        XCTAssertEqual(controller.textView.string, "a")
+
+        type("b", at: 1, in: controller)
+        XCTAssertNil(save(document, to: url, .saveOperation))
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "ab")
+        XCTAssertTrue(controller.banner.isHidden)
+    }
+
+    func testDismissHidesDeletedBanner() throws {
+        let (document, controller, url) = try open("a")
+        try FileManager.default.removeItem(at: url)
+        document.diskDidChange(nil)
+        document.dismissExternalChange()
+        XCTAssertTrue(controller.banner.isHidden)
+    }
+
+    func testReappearingFileIsOrdinaryChange() throws {
+        let (document, controller, url) = try open("a")
+        try FileManager.default.removeItem(at: url)
+        document.diskDidChange(nil)
+        try changeOnDisk("a", at: url, document: document)
+        XCTAssertTrue(controller.banner.isHidden)
+
+        try FileManager.default.removeItem(at: url)
+        document.diskDidChange(nil)
+        try changeOnDisk("new", at: url, document: document)
+        XCTAssertTrue(controller.banner.isHidden)
+        XCTAssertEqual(controller.textView.string, "new")
+    }
 }

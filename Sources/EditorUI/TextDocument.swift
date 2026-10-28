@@ -60,11 +60,54 @@ public final class TextDocument: NSDocument {
         to url: URL, ofType typeName: String, for saveOperation: NSDocument.SaveOperationType,
         completionHandler: @escaping (Error?) -> Void
     ) {
+        // Never write over a disk change the user hasn't seen.
+        if hasUnresolvedDiskChange, url == fileURL {
+            switch saveOperation {
+            case .saveOperation:
+                DispatchQueue.main.async { self.showExternalChangeResolution() }
+                return completionHandler(CocoaError(.userCancelled))
+            case .autosaveInPlaceOperation:
+                return completionHandler(unresolvedChangeError())
+            default:
+                break
+            }
+        }
         // What lands on disk becomes the new base, unless it went to another file.
         let snapshot = saveOperation == .saveToOperation ? nil : model.map { Self.normalized($0.storage.string) }
         super.save(to: url, ofType: typeName, for: saveOperation) { [weak self] error in
-            if error == nil, let snapshot, let self, !self.isViewer { self.baseText = snapshot }
+            if error == nil, saveOperation != .saveToOperation, let self {
+                if let snapshot, !self.isViewer { self.baseText = snapshot }
+                // Saved over (or recreated, or moved to) the file: nothing left pending.
+                self.externalState = .none
+            }
             completionHandler(error)
+        }
+    }
+
+    /// Periodic autosaves skip quietly; the one before closing or quitting
+    /// fails with an explanation, so neither version is dropped.
+    override public func autosave(withImplicitCancellability autosavingIsImplicitlyCancellable: Bool, completionHandler: @escaping (Error?) -> Void) {
+        guard hasUnresolvedDiskChange else {
+            return super.autosave(withImplicitCancellability: autosavingIsImplicitlyCancellable, completionHandler: completionHandler)
+        }
+        completionHandler(autosavingIsImplicitlyCancellable ? CocoaError(.userCancelled) : unresolvedChangeError())
+    }
+
+    private var hasUnresolvedDiskChange: Bool {
+        if case .changed = externalState { return true }
+        return false
+    }
+
+    private func unresolvedChangeError() -> Error {
+        NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileWriteUnknown.rawValue, userInfo: [
+            NSLocalizedDescriptionKey: "“\(displayName ?? "This document")” changed on disk while it had unsaved changes.",
+            NSLocalizedRecoverySuggestionErrorKey: "Review the changes or dismiss them first, so neither version is lost.",
+        ])
+    }
+
+    private func showExternalChangeResolution() {
+        for controller in windowControllers {
+            (controller.contentViewController as? EditorViewController)?.resolveExternalChange()
         }
     }
 
@@ -137,6 +180,11 @@ public final class TextDocument: NSDocument {
 
     /// Called by the file coordinator on its own queue. Coalesces bursts
     /// (a log written every few ms) and reads the file off the main thread.
+    override public func accommodatePresentedItemDeletion(completionHandler: @escaping (Error?) -> Void) {
+        DispatchQueue.main.async { self.diskDidChange(nil) }
+        completionHandler(nil)
+    }
+
     override public func presentedItemDidChange() {
         // Not calling super: NSDocument would revert or warn on its own terms.
         DispatchQueue.main.async { self.scheduleDiskCheck() }
@@ -153,6 +201,8 @@ public final class TextDocument: NSDocument {
                     data = try? Data(contentsOf: url)
                     date = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
                 }
+                // Unreadable but still there (permissions, a write in progress) is not "deleted".
+                if data == nil, FileManager.default.fileExists(atPath: url.path) { return }
                 DispatchQueue.main.async { self.diskDidChange(data, modificationDate: date) }
             }
         }
@@ -163,7 +213,11 @@ public final class TextDocument: NSDocument {
     /// The file on disk now holds `data` (nil: it's gone). A clean tab
     /// reloads in place; an edited one gets an external change to review.
     func diskDidChange(_ data: Data?, modificationDate: Date? = nil) {
-        guard let model, let data else { return }
+        guard let model else { return }
+        guard let data else {
+            externalState = .deleted
+            return
+        }
         guard let disk = (try? TextFile(data: data, encoding: model.file.encoding)) ?? (try? TextFile(data: data)) else { return }
         let date = modificationDate ?? fileURL.flatMap {
             try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
@@ -176,13 +230,17 @@ public final class TextDocument: NSDocument {
         }
         let diskText = Self.normalized(disk.text)
         guard diskText != baseText else {
-            // Changed back to what we already know: nothing left to review.
-            if case .changed = externalState { externalState = .none }
+            // Back to what we already know (or the file reappeared as it was).
+            if case .none = externalState {} else { externalState = .none }
+            fileModificationDate = date
             return
         }
 
         if isDocumentEdited {
             pendingDiskDate = date
+            // Saves are gated by `externalState`; keep NSDocument's own
+            // "changed by another application" check out of the way.
+            fileModificationDate = date
             externalState = .changed(ExternalMerge(base: baseText, mine: model.storage.string, disk: disk.text), disk: disk)
         } else {
             for controller in windowControllers {
@@ -191,6 +249,7 @@ public final class TextDocument: NSDocument {
             baseText = diskText
             fileModificationDate = date
             updateChangeCount(.changeCleared)
+            externalState = .none
         }
     }
 
@@ -208,8 +267,11 @@ public final class TextDocument: NSDocument {
 
     /// Keep my text as it is, but stop treating this disk version as news.
     func dismissExternalChange() {
-        guard case .changed(_, let disk) = externalState else { return }
-        adoptDiskAsBase(disk)
+        switch externalState {
+        case .changed(_, let disk): adoptDiskAsBase(disk)
+        case .deleted: externalState = .none
+        case .none: break
+        }
     }
 
     /// Writes my text to `url`, then shows the disk version in this tab.
