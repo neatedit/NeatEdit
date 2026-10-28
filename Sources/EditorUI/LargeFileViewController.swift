@@ -66,6 +66,12 @@ final class LargeFileViewController: NSViewController, DocumentContent, NSMenuIt
     @objc func makeTextBigger(_ sender: Any?) { Preferences.fontSize += 1 }
     @objc func makeTextSmaller(_ sender: Any?) { Preferences.fontSize -= 1 }
     @objc func makeTextStandardSize(_ sender: Any?) { Preferences.fontSize = Preferences.defaultFontSize }
+    @objc func showFontPanel(_ sender: Any?) { Preferences.showFontPanel() }
+    @objc func changeFont(_ sender: Any?) {
+        guard let manager = sender as? NSFontManager else { return }
+        Preferences.adoptFontPanelChoice(manager.convert(Preferences.font))
+    }
+    func validModesForFontPanel(_ fontPanel: NSFontPanel) -> NSFontPanel.ModeMask { [.collection, .face, .size] }
 
     @objc func goToLine(_ sender: Any?) {
         guard let window = view.window else { return }
@@ -79,7 +85,8 @@ final class LargeFileViewController: NSViewController, DocumentContent, NSMenuIt
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        // Lines never wrap in the viewer.
+        // Lines never wrap or get numbered in the viewer.
         menuItem.action != #selector(EditorViewController.toggleWrapLines(_:))
+            && menuItem.action != #selector(EditorViewController.toggleLineNumbers(_:))
     }
 }

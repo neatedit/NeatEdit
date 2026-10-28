@@ -5,36 +5,70 @@ import AppKit
 public enum Preferences {
     public static let didChange = Notification.Name("SimpleTextEditPreferencesDidChange")
 
+    /// Swappable so tests don't touch the user's settings.
+    static var defaults = UserDefaults.standard
+
     private static let fontSizeKey = "fontSize"
+    private static let fontNameKey = "fontName"
     private static let wrapKey = "wrapLines"
+    private static let lineNumbersKey = "showLineNumbers"
     static let defaultFontSize: CGFloat = 13
 
     public static func registerDefaults() {
-        UserDefaults.standard.register(defaults: [
+        defaults.register(defaults: [
             fontSizeKey: Double(defaultFontSize),
-            wrapKey: true,
-            // Reopen every tab (including unsaved scratch tabs) after quitting,
-            // regardless of the system "close windows when quitting" setting.
-            "NSQuitAlwaysKeepsWindows": true,
+            wrapKey: false,
+            lineNumbersKey: false,
         ])
+        // Reopen every tab (including unsaved scratch tabs) after quitting,
+        // regardless of the system "close windows when quitting" setting.
+        UserDefaults.standard.register(defaults: ["NSQuitAlwaysKeepsWindows": true])
     }
 
     public static var fontSize: CGFloat {
-        get { CGFloat(UserDefaults.standard.double(forKey: fontSizeKey)).clamped(to: 8...48, default: defaultFontSize) }
+        get { CGFloat(defaults.double(forKey: fontSizeKey)).clamped(to: 8...48, default: defaultFontSize) }
         set { set(Double(newValue.clamped(to: 8...48, default: defaultFontSize)), forKey: fontSizeKey) }
     }
 
+    /// PostScript name of the chosen font; nil means the system monospaced font.
+    public static var fontName: String? {
+        get { defaults.string(forKey: fontNameKey) }
+        set { set(newValue, forKey: fontNameKey) }
+    }
+
     public static var wrapsLines: Bool {
-        get { UserDefaults.standard.bool(forKey: wrapKey) }
+        get { defaults.bool(forKey: wrapKey) }
         set { set(newValue, forKey: wrapKey) }
     }
 
-    public static var font: NSFont {
-        NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+    public static var showsLineNumbers: Bool {
+        get { defaults.bool(forKey: lineNumbersKey) }
+        set { set(newValue, forKey: lineNumbersKey) }
     }
 
-    private static func set(_ value: Any, forKey key: String) {
-        UserDefaults.standard.set(value, forKey: key)
+    /// Only fixed-pitch fonts: the large file viewer lays text out on a grid.
+    public static var font: NSFont {
+        if let fontName, let font = NSFont(name: fontName, size: fontSize), font.isFixedPitch {
+            return font
+        }
+        return NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+    }
+
+    /// Takes face and size from the font panel; proportional fonts are ignored.
+    static func adoptFontPanelChoice(_ font: NSFont) {
+        guard font.isFixedPitch else { NSSound.beep(); return }
+        fontName = font.fontName
+        fontSize = font.pointSize
+    }
+
+    /// Opens the standard font panel on the current font.
+    static func showFontPanel() {
+        NSFontManager.shared.setSelectedFont(font, isMultiple: false)
+        NSFontManager.shared.orderFrontFontPanel(nil)
+    }
+
+    private static func set(_ value: Any?, forKey key: String) {
+        defaults.set(value, forKey: key)
         NotificationCenter.default.post(name: didChange, object: nil)
     }
 }

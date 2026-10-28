@@ -85,6 +85,13 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
     @objc func makeTextSmaller(_ sender: Any?) { Preferences.fontSize -= 1 }
     @objc func makeTextStandardSize(_ sender: Any?) { Preferences.fontSize = Preferences.defaultFontSize }
     @objc func toggleWrapLines(_ sender: Any?) { Preferences.wrapsLines.toggle() }
+    @objc func toggleLineNumbers(_ sender: Any?) { Preferences.showsLineNumbers.toggle() }
+    @objc func showFontPanel(_ sender: Any?) { Preferences.showFontPanel() }
+    @objc func changeFont(_ sender: Any?) {
+        guard let manager = sender as? NSFontManager else { return }
+        Preferences.adoptFontPanelChoice(manager.convert(Preferences.font))
+    }
+    func validModesForFontPanel(_ fontPanel: NSFontPanel) -> NSFontPanel.ModeMask { [.collection, .face, .size] }
 
     @objc func goToLine(_ sender: Any?) {
         guard let window = view.window else { return }
@@ -101,6 +108,9 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(toggleWrapLines(_:)) {
             menuItem.state = Preferences.wrapsLines ? .on : .off
+        }
+        if menuItem.action == #selector(toggleLineNumbers(_:)) {
+            menuItem.state = Preferences.showsLineNumbers ? .on : .off
         }
         return true
     }
