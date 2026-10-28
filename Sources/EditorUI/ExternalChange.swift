@@ -48,7 +48,14 @@ final class ExternalChangeBanner: NSView {
             isHidden = false
             message.stringValue = "File changed on disk"
             primaryButton.isHidden = false
+            primaryButton.isEnabled = true
             primaryButton.title = merge.isBig ? "Save My Version As…" : "Review Changes"
+        case .checking:
+            isHidden = false
+            message.stringValue = "File changed on disk"
+            primaryButton.isHidden = false
+            primaryButton.isEnabled = false
+            primaryButton.title = "Comparing…"
         case .deleted:
             isHidden = false
             message.stringValue = "Deleted from disk"
@@ -195,12 +202,19 @@ final class ChangeReviewController: NSViewController {
         return row
     }
 
-    private static func diffText(_ hunk: ExternalHunk) -> NSAttributedString {
+    /// More than this per side is summarized, so a huge append can't stall the sheet.
+    static let maxLinesPerSide = 200
+
+    static func diffText(_ hunk: ExternalHunk) -> NSAttributedString {
         let font = NSFont.monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
         let out = NSMutableAttributedString()
         func add(_ lines: [String], _ prefix: String, _ color: NSColor) {
-            for line in lines {
+            for line in lines.prefix(maxLinesPerSide) {
                 out.append(NSAttributedString(string: prefix + line + "\n", attributes: [.font: font, .foregroundColor: color]))
+            }
+            if lines.count > maxLinesPerSide {
+                out.append(NSAttributedString(string: "  … \(lines.count - maxLinesPerSide) more lines\n",
+                                              attributes: [.font: font, .foregroundColor: NSColor.secondaryLabelColor]))
             }
         }
         if hunk.isConflict {

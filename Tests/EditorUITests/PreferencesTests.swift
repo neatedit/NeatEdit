@@ -52,6 +52,16 @@ final class PreferencesTests: XCTestCase {
         XCTAssertEqual(Preferences.fontSize, 16)
     }
 
+    func testFontPanelReachesControllerThroughTheTextView() throws {
+        let controller = EditorViewController(model: EditorModel(file: .init(text: "")))
+        let window = NSWindow(contentViewController: controller)
+        window.makeFirstResponder(controller.textView)
+        NSFontManager.shared.setSelectedFont(NSFont(name: "Menlo-Regular", size: 15)!, isMultiple: false)
+        controller.textView.changeFont(NSFontManager.shared)
+        XCTAssertNotNil(Preferences.fontName)
+        _ = window
+    }
+
     func testToggleLineNumbers() {
         let controller = EditorViewController(model: EditorModel(file: .init(text: "")))
         controller.toggleLineNumbers(nil)

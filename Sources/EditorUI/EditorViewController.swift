@@ -90,7 +90,7 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
     /// Banner button: review hunk by hunk, or for a big change save mine
     /// elsewhere and take the disk version.
     func resolveExternalChange() {
-        guard let document, case .changed(let merge, _) = document.externalState else { return }
+        guard let document, let merge = document.currentMerge() else { return }
         if merge.isBig {
             saveMyVersionAs(document)
         } else {

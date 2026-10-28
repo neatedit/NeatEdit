@@ -61,6 +61,13 @@ struct ExternalMergeTests {
         #expect(!ExternalMerge(base: base, mine: base, disk: five).isBig)
     }
 
+    @Test func bigAppendCountsInsertedLines() {
+        let base = (1...10).map(String.init).joined(separator: "\n")
+        let appended = base + "\n" + (1...100).map { "new \($0)" }.joined(separator: "\n")
+        #expect(ExternalMerge(base: base, mine: base, disk: appended).isBig)
+        #expect(!ExternalMerge(base: base, mine: base, disk: base + "\nnew").isBig)
+    }
+
     @Test func lineEndingOnlyChangeIsEmpty() {
         let merge = ExternalMerge(base: "a\nb", mine: "a\nb", disk: "a\r\nb")
         #expect(merge.isEmpty)

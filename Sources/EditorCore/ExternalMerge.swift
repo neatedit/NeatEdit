@@ -38,7 +38,8 @@ public struct ExternalMerge: Sendable {
         let ours = LineDiff.hunks(old: baseLines, new: normalizedLines(mine))
         let theirs = LineDiff.hunks(old: baseLines, new: normalizedLines(disk))
         self.baseLines = baseLines.map(String.init)
-        changedLineCount = theirs.reduce(0) { $0 + max($1.oldRange.count, 1) }
+        changedLineCount = theirs.reduce(0) { $0 + max($1.oldRange.count, $1.newLines.count, 1) }
+        lineCount = max(baseLines.count, baseLines.count + theirs.reduce(0) { $0 + $1.newLines.count - $1.oldRange.count })
 
         var regions: [Region] = []
         var hunks: [ExternalHunk] = []
@@ -66,11 +67,14 @@ public struct ExternalMerge: Sendable {
 
     public var isEmpty: Bool { hunks.isEmpty }
 
-    /// Base lines touched by the external change (an insertion counts as one).
+    /// Lines touched by the external change, counting the larger side of each hunk.
     private let changedLineCount: Int
+    /// The longer of base and disk, in lines.
+    private let lineCount: Int
 
-    /// Too much changed to review piece by piece: more than half of base.
-    public var isBig: Bool { changedLineCount * 2 > baseLines.count }
+    /// Too much changed to review piece by piece: more than half of the
+    /// file (whichever of base and disk is longer) was rewritten or added.
+    public var isBig: Bool { changedLineCount * 2 > lineCount }
 
     /// The user's text with accepted hunks applied, LF line endings.
     /// Hunks without a decision are skipped.

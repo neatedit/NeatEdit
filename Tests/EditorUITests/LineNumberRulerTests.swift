@@ -56,6 +56,15 @@ final class LineNumberRulerTests: XCTestCase {
         XCTAssertGreaterThan(big.ruleThickness, small.ruleThickness)
     }
 
+    func testGutterWidensWithFontSize() throws {
+        Preferences.showsLineNumbers = true
+        let ruler = try XCTUnwrap(show("1\n2\n3").lineNumberRuler)
+        let before = ruler.ruleThickness
+        Preferences.fontSize = 40
+        ruler.updateThickness()
+        XCTAssertGreaterThan(ruler.ruleThickness, before)
+    }
+
     func testTogglingOffHidesGutter() {
         Preferences.showsLineNumbers = true
         let controller = show("a")

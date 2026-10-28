@@ -7,6 +7,7 @@ final class LineNumberRuler: NSRulerView {
     private weak var textView: PlainTextView?
     private let model: () -> EditorModel
     private var digits = 0
+    private var measuredSize: CGFloat = 0
 
     init(textView: PlainTextView, model: @escaping () -> EditorModel) {
         self.textView = textView
@@ -34,9 +35,11 @@ final class LineNumberRuler: NSRulerView {
     /// Room for the widest number (at least two digits) plus padding.
     func updateThickness() {
         let count = max(String(model().lineIndex.lineCount).count, 2)
-        guard count != digits || ruleThickness == 0 else { return }
+        let font = labelFont
+        guard count != digits || font.pointSize != measuredSize || ruleThickness == 0 else { return }
         digits = count
-        let digitWidth = ("0" as NSString).size(withAttributes: [.font: labelFont]).width
+        measuredSize = font.pointSize
+        let digitWidth = ("0" as NSString).size(withAttributes: [.font: font]).width
         ruleThickness = ceil(CGFloat(count) * digitWidth + 12)
     }
 

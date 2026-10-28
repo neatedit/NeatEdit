@@ -368,7 +368,8 @@ final class ExternalChangeTests: XCTestCase {
         let readStamp = document.diskReadStamp
         type("b", at: 1, in: controller)
         XCTAssertNil(save(document, to: url, .saveOperation))
-        document.diskReadFinished(Data("old outside".utf8), modificationDate: nil, stamp: readStamp)
+        let read = TextDocument.DiskRead.make(Data("old outside".utf8), preferring: .utf8, forViewer: false, date: nil)
+        document.diskReadFinished(read, stamp: readStamp)
         XCTAssertEqual(controller.textView.string, "ab")
     }
 
@@ -470,5 +471,70 @@ final class ExternalChangeTests: XCTestCase {
         wait(for: [done], timeout: 5)
         RunLoop.main.run(until: Date().addingTimeInterval(0.1))
         XCTAssertEqual(merge(document)?.hunks.first?.base.newLines, ["D2"])
+    }
+
+    // MARK: Final review findings
+
+    func testApplyKeepsTypingDoneAfterTheBannerAppeared() throws {
+        let (document, controller, url) = try open("a\nb\nc")
+        type("!", at: 0, in: controller)
+        try changeOnDisk("a\nb\nC", at: url, document: document)
+        type("?", at: 1, in: controller)
+        let merge = try XCTUnwrap(document.currentMerge())
+        document.applyReview([merge.hunks[0].id: .accept])
+        XCTAssertEqual(controller.textView.string, "!?a\nb\nC")
+    }
+
+    func testEditorTabGrownPastViewerSizeIsNotReplaced() throws {
+        let (document, controller, _) = try open("a")
+        let saved = TextDocument.largeFileThreshold
+        TextDocument.largeFileThreshold = 5
+        defer { TextDocument.largeFileThreshold = saved }
+        type("bcdefgh", at: 1, in: controller)
+        document.diskDidChange(Data("disk".utf8))
+        XCTAssertEqual(controller.textView.string, "abcdefgh")
+        XCTAssertFalse(controller.banner.isHidden)
+    }
+
+    func testSavesAreBlockedWhileABigDiffIsComputed() throws {
+        let saved = TextDocument.syncMergeLimit
+        TextDocument.syncMergeLimit = 0
+        defer { TextDocument.syncMergeLimit = saved }
+        let (document, controller, url) = try open("a\nb\nc")
+        type("!", at: 0, in: controller)
+        try Data("a\nB\nc".utf8).write(to: url)
+        document.diskDidChange(try Data(contentsOf: url))
+        XCTAssertFalse(controller.banner.isHidden)
+        XCTAssertEqual((save(document, to: url, .saveOperation) as? CocoaError)?.code, .userCancelled)
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "a\nB\nc")
+    }
+
+    func testUtf16TabEchoDoesNotTurnIntoUtf8() throws {
+        let (document, controller, url) = try open("hello")
+        try "hello".data(using: .utf16LittleEndian)!.write(to: url)
+        try document.reopen(with: .utf16LittleEndian)
+        type("!", at: 0, in: controller)
+        XCTAssertNil(save(document, to: url, .saveOperation))
+        document.diskDidChange(try Data(contentsOf: url))
+        XCTAssertEqual(controller.textView.string, "!hello")
+        XCTAssertEqual(controller.statusBar.encodingButton.title, "UTF-16 LE")
+    }
+
+    func testReopenClearsPendingChange() throws {
+        let (document, controller, url) = try open("a\nb")
+        type("!", at: 0, in: controller)
+        try changeOnDisk("a\nB", at: url, document: document)
+        try document.reopen(with: .utf8)
+        XCTAssertTrue(controller.banner.isHidden)
+        guard case .none = document.externalState else { return XCTFail("reopen shows the disk; nothing pending") }
+    }
+
+    func testReviewShowsAtMostAFewHundredLinesPerHunk() {
+        let base = (1...1000).map { "l\($0)" }.joined(separator: "\n")
+        let disk = base + "\n" + (1...300).map { "n\($0)" }.joined(separator: "\n")
+        let merge = ExternalMerge(base: base, mine: base, disk: disk)
+        let text = ChangeReviewController.diffText(merge.hunks[0]).string
+        XCTAssertLessThanOrEqual(text.components(separatedBy: "\n").count, ChangeReviewController.maxLinesPerSide * 2 + 2)
+        XCTAssertTrue(text.contains("more lines"))
     }
 }
