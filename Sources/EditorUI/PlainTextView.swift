@@ -52,38 +52,61 @@ public final class PlainTextView: NSTextView {
     /// Called after a paste was unwrapped, so the tab can say so.
     var onPasteUnwrapped: (() -> Void)?
 
+    /// Set only while ⌘V / Paste runs, so text coming back from Services
+    /// (which also arrives through `readSelection`) is left alone.
+    private var isPasting = false
+
+    override public func paste(_ sender: Any?) {
+        isPasting = true
+        defer { isPasting = false }
+        super.paste(sender)
+    }
+
+    /// The paste path, with an explicit pasteboard.
+    @discardableResult
+    func paste(from pboard: NSPasteboard) -> Bool {
+        isPasting = true
+        defer { isPasting = false }
+        return readSelection(from: pboard)
+    }
+
     /// Pastes as is, then — if it looks like hard-wrapped terminal text —
     /// unwraps it as a separate undo step: one ⌘Z gives the original back.
     override public func readSelection(from pboard: NSPasteboard) -> Bool {
-        guard Preferences.unwrapsPastedText, let raw = pboard.string(forType: .string),
+        guard isPasting, Preferences.unwrapsPastedText, isEditable, let raw = pboard.string(forType: .string),
               let unwrapped = TextUnwrap.unwrapIfWrapped(raw),
               (undoManager?.groupingLevel ?? 0) == 0 else {
             return super.readSelection(from: pboard)
         }
         let start = selectedRange().location
-        replace(selectedRange(), with: raw, asUndoStep: "Paste")
-        replace(NSRange(location: start, length: (raw as NSString).length), with: unwrapped, asUndoStep: "Unwrap Pasted Text")
-        onPasteUnwrapped?()
+        guard replace(selectedRange(), with: raw, asUndoStep: "Paste") else { return false }
+        if replace(NSRange(location: start, length: (raw as NSString).length), with: unwrapped, asUndoStep: "Unwrap Pasted Text") {
+            onPasteUnwrapped?()
+        }
         return true
     }
 
     /// Replaces `range` as a top-level undo step of its own (when nothing
     /// else is open in this event) and puts the caret after it.
-    func replace(_ range: NSRange, with text: String, asUndoStep actionName: String) {
+    @discardableResult
+    func replace(_ range: NSRange, with text: String, asUndoStep actionName: String) -> Bool {
         let undo = undoManager
         let groupsByEvent = undo?.groupsByEvent ?? true
         undo?.groupsByEvent = false
         defer { undo?.groupsByEvent = groupsByEvent }
         breakUndoCoalescing()
         undo?.beginUndoGrouping()
-        if shouldChangeText(in: range, replacementString: text) {
+        let changed = shouldChangeText(in: range, replacementString: text)
+        if changed {
             textStorage?.replaceCharacters(in: range, with: NSAttributedString(string: text, attributes: typingAttributes))
             didChangeText()
+            undo?.setActionName(actionName)
         }
-        undo?.setActionName(actionName)
         undo?.endUndoGrouping()
+        guard changed else { return false }
         setSelectedRange(NSRange(location: range.location + (text as NSString).length, length: 0))
         scrollRangeToVisible(selectedRange())
+        return true
     }
 
     override public func performFindPanelAction(_ sender: Any?) {

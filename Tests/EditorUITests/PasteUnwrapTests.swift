@@ -40,7 +40,7 @@ final class PasteUnwrapTests: XCTestCase {
 
     func testWrappedPasteIsUnwrapped() {
         let (controller, window) = editor()
-        XCTAssertTrue(controller.textView.readSelection(from: pasteboard(wrapped)))
+        XCTAssertTrue(controller.textView.paste(from: pasteboard(wrapped)))
         XCTAssertEqual(controller.textView.string, unwrapped)
         XCTAssertEqual(controller.textView.selectedRange(), NSRange(location: (unwrapped as NSString).length, length: 0))
         _ = window
@@ -49,7 +49,7 @@ final class PasteUnwrapTests: XCTestCase {
     func testFirstUndoRestoresTheOriginalPasteSecondRemovesIt() throws {
         let (controller, window) = editor("x")
         controller.textView.setSelectedRange(NSRange(location: 1, length: 0))
-        _ = controller.textView.readSelection(from: pasteboard(wrapped))
+        _ = controller.textView.paste(from: pasteboard(wrapped))
         spin()
         let undo = try XCTUnwrap(controller.textView.undoManager)
         XCTAssertEqual(undo.undoActionName, "Unwrap Pasted Text")
@@ -63,7 +63,7 @@ final class PasteUnwrapTests: XCTestCase {
 
     func testStatusBarSaysWhatHappenedUntilTheNextChange() {
         let (controller, window) = editor()
-        _ = controller.textView.readSelection(from: pasteboard(wrapped))
+        _ = controller.textView.paste(from: pasteboard(wrapped))
         spin()
         XCTAssertEqual(controller.leftStatus.stringValue, "Unwrapped pasted text — ⌘Z for original")
         controller.textView.insertText("!", replacementRange: controller.textView.selectedRange())
@@ -74,7 +74,7 @@ final class PasteUnwrapTests: XCTestCase {
 
     func testOrdinaryPasteIsUntouched() {
         let (controller, window) = editor()
-        _ = controller.textView.readSelection(from: pasteboard("short\nlines"))
+        _ = controller.textView.paste(from: pasteboard("short\nlines"))
         spin()
         XCTAssertEqual(controller.textView.string, "short\nlines")
         XCTAssertTrue(controller.leftStatus.stringValue.hasPrefix("Ln 2"))
@@ -84,7 +84,7 @@ final class PasteUnwrapTests: XCTestCase {
     func testTurnedOffPastesAsIs() {
         Preferences.unwrapsPastedText = false
         let (controller, window) = editor()
-        _ = controller.textView.readSelection(from: pasteboard(wrapped))
+        _ = controller.textView.paste(from: pasteboard(wrapped))
         XCTAssertEqual(controller.textView.string, wrapped)
         _ = window
     }
@@ -112,6 +112,22 @@ final class PasteUnwrapTests: XCTestCase {
         XCTAssertEqual(controller.textView.string, "before\n" + unwrapped + "\nafter")
         try XCTUnwrap(controller.textView.undoManager).undo()
         XCTAssertEqual(controller.textView.string, "before\n" + wrapped + "\nafter")
+        _ = window
+    }
+
+    func testServicesReplacingTheSelectionAreNotUnwrapped() {
+        let (controller, window) = editor()
+        XCTAssertTrue(controller.textView.readSelection(from: pasteboard(wrapped)))
+        XCTAssertEqual(controller.textView.string, wrapped)
+        _ = window
+    }
+
+    func testReadOnlyViewDoesNotHalfReplace() {
+        let (controller, window) = editor("abc")
+        controller.textView.isEditable = false
+        controller.textView.setSelectedRange(NSRange(location: 3, length: 0))
+        _ = controller.textView.paste(from: pasteboard(wrapped))
+        XCTAssertEqual(controller.textView.string, "abc")
         _ = window
     }
 

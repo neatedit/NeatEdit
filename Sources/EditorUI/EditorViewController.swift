@@ -263,7 +263,7 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
         let text = (model.storage.string as NSString).substring(with: range)
         let unwrapped = TextUnwrap.unwrap(text)
         guard unwrapped != text else { return }
-        textView.replace(range, with: unwrapped, asUndoStep: "Unwrap Lines")
+        guard textView.replace(range, with: unwrapped, asUndoStep: "Unwrap Lines") else { return }
         textView.setSelectedRange(NSRange(location: range.location, length: (unwrapped as NSString).length))
     }
     @objc func toggleLineNumbers(_ sender: Any?) { Preferences.showsLineNumbers.toggle() }
@@ -352,7 +352,7 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
             menuItem.state = Preferences.unwrapsPastedText ? .on : .off
         }
         if menuItem.action == #selector(unwrapLines(_:)) {
-            return textView.selectedRange().length > 0
+            return textView.isEditable && textView.selectedRange().length > 0
         }
         return true
     }
