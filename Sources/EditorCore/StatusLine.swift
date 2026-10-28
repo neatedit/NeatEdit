@@ -22,7 +22,13 @@ public struct CharacterCount: Equatable, Sendable {
 /// The two halves of the status bar, as plain strings.
 public struct StatusLine: Equatable, Sendable {
     public var left: String
-    public var right: String
+    /// "11 chars, 2 lines"; encoding and line ending are separate so the UI
+    /// can make them clickable.
+    public var totals: String
+    public var encoding: String
+    public var lineEnding: LineEnding
+
+    public var right: String { "\(totals)   \(encoding)   \(lineEnding.rawValue)" }
 
     public init(
         position: CursorPosition,
@@ -42,7 +48,9 @@ public struct StatusLine: Equatable, Sendable {
         self.left = left
 
         let total = totalCharacters.map(Self.format) ?? "…"
-        right = "\(total) chars, \(Self.format(lines)) lines   \(encoding)   \(lineEnding.rawValue)"
+        totals = "\(total) chars, \(Self.format(lines)) lines"
+        self.encoding = encoding
+        self.lineEnding = lineEnding
     }
 
     private static func format(_ count: CharacterCount) -> String {

@@ -7,10 +7,10 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
     let textView: PlainTextView
     let scrollView = NSScrollView()
     private(set) var lineNumberRuler: LineNumberRuler?
-    private let statusBar = StatusBar()
+    let statusBar = StatusBar()
     private(set) lazy var findController = FindController(textView: textView)
     var leftStatus: NSTextField { statusBar.left }
-    var rightStatus: NSTextField { statusBar.right }
+    var rightStatus: String { statusBar.rightText }
 
     /// Above this many UTF-16 units we only lay out what's on screen and skip
     /// live find highlighting; both otherwise chew through the whole file.
@@ -110,6 +110,37 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
         Preferences.adoptFontPanelChoice(manager.convert(Preferences.font))
     }
     func validModesForFontPanel(_ fontPanel: NSFontPanel) -> NSFontPanel.ModeMask { [.collection, .face, .size] }
+
+    @objc func chooseLineEnding(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let ending = LineEnding(rawValue: raw) else { return }
+        setLineEnding(ending)
+    }
+
+    /// Converts every line break in the text; one undo step reverts both the
+    /// text and the setting.
+    func setLineEnding(_ ending: LineEnding) {
+        guard ending != model.lineEnding, let storage = textView.textStorage else { return }
+        let full = NSRange(location: 0, length: storage.length)
+        let converted = ending.apply(to: storage.string)
+        let caret = textView.selectedRange().location
+        textView.breakUndoCoalescing()
+        textView.undoManager?.beginUndoGrouping()
+        setLineEndingValue(ending)
+        if textView.shouldChangeText(in: full, replacementString: converted) {
+            storage.replaceCharacters(in: full, with: converted)
+            textView.didChangeText()
+        }
+        textView.undoManager?.endUndoGrouping()
+        textView.undoManager?.setActionName("Convert Line Endings")
+        textView.setSelectedRange(NSRange(location: min(caret, storage.length), length: 0))
+    }
+
+    private func setLineEndingValue(_ ending: LineEnding) {
+        let old = model.lineEnding
+        model.lineEnding = ending
+        textView.undoManager?.registerUndo(withTarget: self) { $0.setLineEndingValue(old) }
+        updateStatus()
+    }
 
     @objc func goToLine(_ sender: Any?) {
         guard let window = view.window else { return }

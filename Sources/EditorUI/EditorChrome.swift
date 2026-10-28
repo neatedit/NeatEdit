@@ -6,15 +6,26 @@ protocol DocumentContent: NSViewController {
     func replaceModel(_ newModel: EditorModel)
 }
 
-/// The strip under the text: caret/selection on the left, totals on the right.
+/// The strip under the text: caret/selection on the left, totals on the
+/// right, then encoding and line ending, which open menus when clicked.
 final class StatusBar: NSStackView {
     let left = StatusBar.label()
     let right = StatusBar.label()
+    let encodingButton = StatusBar.button()
+    let lineEndingButton = StatusBar.button()
+    /// Whether clicking the line ending offers conversion (not in the read-only viewer).
+    var canChangeLineEnding = true {
+        didSet { lineEndingButton.isEnabled = canChangeLineEnding }
+    }
+    private var lineEnding = LineEnding.lf
     private var updatePending = false
 
     init() {
         super.init(frame: .zero)
-        setViews([left, NSView(), right], in: .leading)
+        setViews([left, NSView(), right, encodingButton, lineEndingButton], in: .leading)
+        spacing = 12
+        lineEndingButton.target = self
+        lineEndingButton.action = #selector(showLineEndingMenu(_:))
         orientation = .horizontal
         edgeInsets = NSEdgeInsets(top: 0, left: 8, bottom: 0, right: 8)
         left.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -25,7 +36,35 @@ final class StatusBar: NSStackView {
 
     func show(_ status: StatusLine) {
         left.stringValue = status.left
-        right.stringValue = status.right
+        right.stringValue = status.totals
+        encodingButton.title = status.encoding
+        lineEndingButton.title = status.lineEnding.rawValue
+        lineEnding = status.lineEnding
+    }
+
+    /// Everything on the right as one string, as the status bar reads.
+    var rightText: String {
+        "\(right.stringValue)   \(encodingButton.title)   \(lineEndingButton.title)"
+    }
+
+    /// Items go up the responder chain to `chooseLineEnding(_:)`.
+    func lineEndingMenu() -> NSMenu {
+        let menu = NSMenu()
+        for ending in LineEnding.allCases {
+            let item = NSMenuItem(title: ending.rawValue, action: #selector(EditorViewController.chooseLineEnding(_:)), keyEquivalent: "")
+            item.representedObject = ending.rawValue
+            item.state = ending == lineEnding ? .on : .off
+            menu.addItem(item)
+        }
+        return menu
+    }
+
+    @objc private func showLineEndingMenu(_ sender: NSButton) {
+        Self.pop(lineEndingMenu(), under: sender)
+    }
+
+    static func pop(_ menu: NSMenu, under button: NSButton) {
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.maxY + 4), in: button)
     }
 
     /// Coalesce bursts (typing, dragging a selection) into one update per run loop pass.
@@ -36,6 +75,15 @@ final class StatusBar: NSStackView {
             self?.updatePending = false
             update()
         }
+    }
+
+    private static func button() -> NSButton {
+        let button = NSButton(title: "", target: nil, action: nil)
+        button.isBordered = false
+        button.font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
+        button.contentTintColor = .secondaryLabelColor
+        button.setContentCompressionResistancePriority(.required, for: .horizontal)
+        return button
     }
 
     private static func label() -> NSTextField {

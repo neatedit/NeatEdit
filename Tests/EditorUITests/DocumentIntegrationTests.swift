@@ -37,7 +37,7 @@ final class DocumentIntegrationTests: XCTestCase {
         let (_, controller) = try open(Data("hello\nсвіт\n".utf8))
         XCTAssertEqual(controller.textView.string, "hello\nсвіт\n")
         XCTAssertEqual(controller.leftStatus.stringValue, "Ln 1, Col 1   Pos 0   Line 5 chars")
-        XCTAssertEqual(controller.rightStatus.stringValue, "11 chars, 3 lines   UTF-8   LF")
+        XCTAssertEqual(controller.rightStatus, "11 chars, 3 lines   UTF-8   LF")
     }
 
     func testStatusFollowsTypingAndSelection() throws {
@@ -61,6 +61,29 @@ final class DocumentIntegrationTests: XCTestCase {
         XCTAssertEqual(try document.data(ofType: "public.plain-text"), "a\r\nб\r\nв".data(using: .windowsCP1251)!)
     }
 
+    func testChoosingLineEndingConvertsAndUndoes() throws {
+        let (document, controller) = try open(Data("a\nb".utf8))
+        let undoManager = try XCTUnwrap(controller.textView.undoManager)
+        controller.setLineEnding(LineEnding.crlf)
+        drainMainQueue()
+        XCTAssertEqual(try document.data(ofType: "public.plain-text"), Data("a\r\nb".utf8))
+        XCTAssertEqual(controller.statusBar.lineEndingButton.title, "CRLF")
+        XCTAssertTrue(document.isDocumentEdited)
+
+        undoManager.undo()
+        drainMainQueue()
+        XCTAssertEqual(controller.textView.string, "a\nb")
+        XCTAssertEqual(controller.statusBar.lineEndingButton.title, "LF")
+        XCTAssertEqual(try document.data(ofType: "public.plain-text"), Data("a\nb".utf8))
+    }
+
+    func testLineEndingMenuListsAllChoices() throws {
+        let (_, controller) = try open(Data("a".utf8))
+        let menu = controller.statusBar.lineEndingMenu()
+        XCTAssertEqual(menu.items.map(\.title), ["LF", "CRLF", "CR"])
+        XCTAssertEqual(menu.items.map(\.state), [.on, .off, .off])
+    }
+
     func testEditsMarkDocumentDirty() throws {
         let (document, controller) = try open(Data("x".utf8))
         XCTAssertFalse(document.isDocumentEdited)
@@ -74,7 +97,7 @@ final class DocumentIntegrationTests: XCTestCase {
         try document.read(from: Data("new text".utf8), ofType: "public.plain-text")
         drainMainQueue()
         XCTAssertEqual(controller.textView.string, "new text")
-        XCTAssertEqual(controller.rightStatus.stringValue, "8 chars, 1 lines   UTF-8   LF")
+        XCTAssertEqual(controller.rightStatus, "8 chars, 1 lines   UTF-8   LF")
     }
 
     func testHugeDocumentsSkipBackgroundLayout() throws {
@@ -97,7 +120,7 @@ final class DocumentIntegrationTests: XCTestCase {
         document.makeWindowControllers()
         let controller = try XCTUnwrap(document.windowControllers.first?.contentViewController as? LargeFileViewController)
         _ = controller.view
-        XCTAssertEqual(controller.rightStatus.stringValue, "18 chars, 3 lines   UTF-8   LF")
+        XCTAssertEqual(controller.rightStatus, "18 chars, 3 lines   UTF-8   LF")
         XCTAssertEqual(controller.leftStatus.stringValue, "Ln 1, Col 1   Pos 0   Line 8 chars")
 
         controller.textView.moveDown(nil)

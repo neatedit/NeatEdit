@@ -6,10 +6,10 @@ final class LargeFileViewController: NSViewController, DocumentContent, NSMenuIt
     private(set) var model: EditorModel
     let textView: LargeTextView
     private let scrollView = NSScrollView()
-    private let statusBar = StatusBar()
+    let statusBar = StatusBar()
     private let textFinder = NSTextFinder()
     var leftStatus: NSTextField { statusBar.left }
-    var rightStatus: NSTextField { statusBar.right }
+    var rightStatus: String { statusBar.rightText }
 
     init(model: EditorModel) {
         self.model = model
@@ -24,6 +24,7 @@ final class LargeFileViewController: NSViewController, DocumentContent, NSMenuIt
         scrollView.hasHorizontalScroller = true
         scrollView.documentView = textView
         view = EditorChrome.root(scrollView: scrollView, statusBar: statusBar)
+        statusBar.canChangeLineEnding = false
 
         textFinder.client = textView
         textFinder.findBarContainer = scrollView
