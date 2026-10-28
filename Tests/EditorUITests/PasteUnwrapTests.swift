@@ -100,7 +100,11 @@ final class PasteUnwrapTests: XCTestCase {
         general.setString(wrapped, forType: .string)
         let (controller, window) = editor()
         controller.textView.paste(nil)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
         XCTAssertEqual(controller.textView.string, unwrapped)
+        // One ⌘Z (the Undo menu goes up the responder chain) gives the original back.
+        XCTAssertTrue(controller.textView.tryToPerform(Selector(("undo:")), with: nil))
+        XCTAssertEqual(controller.textView.string, wrapped)
         _ = window
     }
 

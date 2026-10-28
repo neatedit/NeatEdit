@@ -52,34 +52,29 @@ public final class PlainTextView: NSTextView {
     /// Called after a paste was unwrapped, so the tab can say so.
     var onPasteUnwrapped: (() -> Void)?
 
-    /// Set only while ⌘V / Paste runs, so text coming back from Services
-    /// (which also arrives through `readSelection`) is left alone.
-    private var isPasting = false
-
+    /// ⌘V / Paste. When the text gets unwrapped we do the whole paste
+    /// ourselves: NSTextView's own `paste:` adds an (empty) undo step after
+    /// ours, which would make the first ⌘Z appear to do nothing.
     override public func paste(_ sender: Any?) {
-        isPasting = true
-        defer { isPasting = false }
-        super.paste(sender)
+        if !pasteUnwrapping(from: .general) { super.paste(sender) }
     }
 
     /// The paste path, with an explicit pasteboard.
     @discardableResult
     func paste(from pboard: NSPasteboard) -> Bool {
-        isPasting = true
-        defer { isPasting = false }
-        return readSelection(from: pboard)
+        pasteUnwrapping(from: pboard) || readSelection(from: pboard)
     }
 
-    /// Pastes as is, then — if it looks like hard-wrapped terminal text —
-    /// unwraps it as a separate undo step: one ⌘Z gives the original back.
-    override public func readSelection(from pboard: NSPasteboard) -> Bool {
-        guard isPasting, Preferences.unwrapsPastedText, isEditable, let raw = pboard.string(forType: .string),
+    /// Pastes as is, then unwraps it as a separate undo step — one ⌘Z gives
+    /// the original back. False (nothing done) when the text doesn't look
+    /// hard-wrapped. Services and drops come through `readSelection` and
+    /// are never unwrapped.
+    private func pasteUnwrapping(from pboard: NSPasteboard) -> Bool {
+        guard Preferences.unwrapsPastedText, isEditable, let raw = pboard.string(forType: .string),
               let unwrapped = TextUnwrap.unwrapIfWrapped(raw),
-              (undoManager?.groupingLevel ?? 0) == 0 else {
-            return super.readSelection(from: pboard)
-        }
+              (undoManager?.groupingLevel ?? 0) == 0 else { return false }
         let start = selectedRange().location
-        guard replace(selectedRange(), with: raw, asUndoStep: "Paste") else { return false }
+        guard replace(selectedRange(), with: raw, asUndoStep: "Paste") else { return true }
         if replace(NSRange(location: start, length: (raw as NSString).length), with: unwrapped, asUndoStep: "Unwrap Pasted Text") {
             onPasteUnwrapped?()
         }
