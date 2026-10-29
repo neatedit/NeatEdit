@@ -112,7 +112,7 @@ final class PasteUnwrapTests: XCTestCase {
         let (controller, window) = editor("before\n" + wrapped + "\nafter")
         let range = (controller.textView.string as NSString).range(of: wrapped)
         controller.textView.setSelectedRange(range)
-        controller.unwrapLines(nil)
+        controller.apply(.unwrapLines)
         XCTAssertEqual(controller.textView.string, "before\n" + unwrapped + "\nafter")
         try XCTUnwrap(controller.textView.undoManager).undo()
         XCTAssertEqual(controller.textView.string, "before\n" + wrapped + "\nafter")
