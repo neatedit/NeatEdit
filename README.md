@@ -18,6 +18,7 @@ A small, native macOS plain-text editor (Swift + AppKit, no dependencies).
 - Localized into the 24 official EU languages and Ukrainian (follows the macOS language; `Resources/Localization`, English text as keys).
 - The window shows the file's folder under its name; File ▸ Copy Path and Show in Finder. File ▸ Print… (⌘P) prints the text in the editor font, wrapped to the page (not in the large file viewer).
 - Files over ~20 MB open in a read-only viewer that stays instant at hundreds of MB (select, copy, find with the same placeholder bar as the editor — no replace — and go to line). It follows a growing file like `tail -f`: only the added bytes are read, and when you're at the bottom the view keeps up with new lines (scroll up and it stays put). A truncated, rewritten or recreated file is reloaded whole.
+- Edit ▸ Edit Lines… (⌘⏎, or right-click) in the viewer opens the caret's line (or the selected lines) with 10 lines on each side in a sheet; Save writes them straight into the file — the bytes before and after are copied untouched into a temporary file that replaces the original, only if the lines on disk are still the ones you opened (text appended meanwhile is kept).
 
 ## Build
 

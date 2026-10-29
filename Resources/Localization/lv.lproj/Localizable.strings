@@ -166,3 +166,8 @@
 "This is the file that changed on disk; saving here would overwrite those changes." = "Šis ir fails, kas mainījās diskā; saglabājot šeit, šīs izmaiņas tiktu pārrakstītas.";
 "Reload from Disk" = "Pārlādēt no diska";
 "(my version)" = "(mana versija)";
+"Edit Lines…" = "Rediģēt rindas…";
+"Save" = "Saglabāt";
+"These lines changed on disk. Cancel and open them again to edit the current text." = "Šīs rindas diskā ir mainījušās. Atceliet un atveriet tās vēlreiz, lai rediģētu pašreizējo tekstu.";
+"Some characters don't exist in the file's encoding." = "Dažas rakstzīmes faila kodējumā nepastāv.";
+"Lines can't be edited in this file's encoding." = "Šī faila kodējumā rindas nevar rediģēt.";

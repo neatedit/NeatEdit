@@ -243,6 +243,16 @@ public final class TextDocument: NSDocument {
         }
     }
 
+    // MARK: Editing lines of a large file
+
+    /// Writes `text` over `chunk` in the file, then shows the file as it is now.
+    func writeLines(_ text: String, over chunk: LineSplice.Chunk) throws {
+        guard let fileURL, let model else { return }
+        try LineSplice.write(text, over: chunk, in: model.storage.string as NSString,
+                             encoding: model.file.encoding, hasBOM: model.file.hasBOM, to: fileURL)
+        scheduleDiskCheck()
+    }
+
     // MARK: Printing
 
     /// The text as plain text in the editor font, wrapped to the page width.

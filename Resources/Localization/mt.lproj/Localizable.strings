@@ -166,3 +166,8 @@
 "This is the file that changed on disk; saving here would overwrite those changes." = "Dan huwa l-fajl li nbidel fuq id-diska; jekk tissejvja hawn, dawk il-bidliet jitħassru.";
 "Reload from Disk" = "Erġa' Tella' mid-Diska";
 "(my version)" = "(il-verżjoni tiegħi)";
+"Edit Lines…" = "Editja l-linji…";
+"Save" = "Issejvja";
+"These lines changed on disk. Cancel and open them again to edit the current text." = "Dawn il-linji nbidlu fuq id-diska. Ikkanċella u erġa’ iftaħhom biex teditja t-test attwali.";
+"Some characters don't exist in the file's encoding." = "Xi karattri ma jeżistux fl-encoding tal-fajl.";
+"Lines can't be edited in this file's encoding." = "Il-linji ma jistgħux jiġu editjati fl-encoding ta’ dan il-fajl.";

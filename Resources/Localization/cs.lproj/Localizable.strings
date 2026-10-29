@@ -166,3 +166,8 @@
 "This is the file that changed on disk; saving here would overwrite those changes." = "Toto je soubor, který se změnil na disku; uložením sem byste tyto změny přepsali.";
 "Reload from Disk" = "Znovu načíst z disku";
 "(my version)" = "(moje verze)";
+"Edit Lines…" = "Upravit řádky…";
+"Save" = "Uložit";
+"These lines changed on disk. Cancel and open them again to edit the current text." = "Tyto řádky se na disku změnily. Zrušte a otevřete je znovu, abyste upravili aktuální text.";
+"Some characters don't exist in the file's encoding." = "Některé znaky v kódování souboru neexistují.";
+"Lines can't be edited in this file's encoding." = "V kódování tohoto souboru nelze řádky upravovat.";

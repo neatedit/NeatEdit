@@ -166,3 +166,8 @@
 "This is the file that changed on disk; saving here would overwrite those changes." = "Това е файлът, който е променен на диска; запазването тук ще презапише тези промени.";
 "Reload from Disk" = "Презареждане от диска";
 "(my version)" = "(моята версия)";
+"Edit Lines…" = "Редактиране на редове…";
+"Save" = "Запазване";
+"These lines changed on disk. Cancel and open them again to edit the current text." = "Тези редове са променени на диска. Откажете и ги отворете отново, за да редактирате текущия текст.";
+"Some characters don't exist in the file's encoding." = "Някои знаци не съществуват в кодирането на файла.";
+"Lines can't be edited in this file's encoding." = "Редовете не могат да се редактират в кодирането на този файл.";

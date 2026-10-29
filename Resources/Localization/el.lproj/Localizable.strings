@@ -166,3 +166,8 @@
 "This is the file that changed on disk; saving here would overwrite those changes." = "Αυτό είναι το αρχείο που άλλαξε στον δίσκο· η αποθήκευση εδώ θα αντικαθιστούσε αυτές τις αλλαγές.";
 "Reload from Disk" = "Επαναφόρτωση από τον δίσκο";
 "(my version)" = "(η έκδοσή μου)";
+"Edit Lines…" = "Επεξεργασία γραμμών…";
+"Save" = "Αποθήκευση";
+"These lines changed on disk. Cancel and open them again to edit the current text." = "Αυτές οι γραμμές άλλαξαν στον δίσκο. Ακυρώστε και ανοίξτε τις ξανά για να επεξεργαστείτε το τρέχον κείμενο.";
+"Some characters don't exist in the file's encoding." = "Ορισμένοι χαρακτήρες δεν υπάρχουν στην κωδικοποίηση του αρχείου.";
+"Lines can't be edited in this file's encoding." = "Οι γραμμές δεν μπορούν να επεξεργαστούν στην κωδικοποίηση αυτού του αρχείου.";

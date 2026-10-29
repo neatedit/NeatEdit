@@ -261,6 +261,20 @@ final class LargeTextView: NSView, NSMenuItemValidation {
         setSelection(NSUnionRange(anchor, hit), scroll: false)
     }
 
+    /// Right click: Copy and Edit Lines…, for the line under the pointer
+    /// unless it's inside the selection.
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let offset = offset(at: convert(event.locationInWindow, from: nil))
+        if !NSLocationInRange(offset, selection), offset != NSMaxRange(selection) {
+            anchor = NSRange(location: offset, length: 0)
+            setSelection(NSRange(location: offset, length: 0), scroll: false)
+        }
+        let menu = NSMenu()
+        menu.addItem(withTitle: L10n.tr("Copy"), action: #selector(NSText.copy(_:)), keyEquivalent: "")
+        menu.addItem(withTitle: L10n.tr("Edit Lines…"), action: #selector(LargeFileViewController.editLines(_:)), keyEquivalent: "")
+        return menu
+    }
+
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
         let granularity: Granularity = switch event.clickCount {
