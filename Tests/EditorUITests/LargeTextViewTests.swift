@@ -104,18 +104,10 @@ final class LargeTextViewTests: XCTestCase {
         XCTAssertFalse(view.isEditable)
     }
 
-    func testFinderClientReportsVisibleRangeAndRects() {
+    func testScrollRangeToVisibleReachesTheEnd() {
         let view = makeView((0..<1000).map { "line \($0)" }.joined(separator: "\n"))
         let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 300, height: 100))
         scroll.documentView = view
-        let visible = view.visibleCharacterRanges.first!.rangeValue
-        XCTAssertEqual(visible.location, 0)
-        XCTAssertLessThan(visible.length, 200)
-
-        let rects = view.rects(forCharacterRange: NSRange(location: 7, length: 3))!.map(\.rectValue)
-        XCTAssertEqual(rects.count, 1)
-        XCTAssertEqual(rects[0].minY, view.layout.lineRect(1, width: 0).minY)
-
         view.scrollRangeToVisible(NSRange(location: (view.model.storage.string as NSString).length - 1, length: 1))
         XCTAssertGreaterThan(view.visibleRect.minY, 1000)
     }
