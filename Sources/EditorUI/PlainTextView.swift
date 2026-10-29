@@ -153,6 +153,7 @@ public final class PlainTextView: NSTextView {
         if let storage = textStorage, storage.length > 0 {
             storage.addAttributes(typingAttributes, range: NSRange(location: 0, length: storage.length))
         }
+        invalidateCurrentLine()
     }
 
     /// Marks for spaces, tabs and line ends, drawn by the layout manager.
@@ -166,56 +167,114 @@ public final class PlainTextView: NSTextView {
     }
 
     var highlightsCurrentLine = true {
-        didSet { if highlightsCurrentLine != oldValue { refreshCurrentLine() } }
+        didSet { if highlightsCurrentLine != oldValue { invalidateCurrentLine() } }
     }
 
-    /// The caret's whole line (every wrapped row), across the view, in view
-    /// coordinates. Nil while text is selected or when off.
+    /// The caret's line (every wrapped row, up to `bandRowLimit` each way),
+    /// across the view, in view coordinates. Nil while text is selected or
+    /// when off. Cached: drawing asks for it once per tile.
     var currentLineRect: NSRect? {
         let ranges = selectedRanges.map(\.rangeValue)
         guard highlightsCurrentLine, ranges.count == 1, let caret = ranges.first, caret.length == 0,
-              let layoutManager else { return nil }
-        let text = string as NSString
-        // Mid-swap (a new model) the old selection can point past the end.
-        guard caret.location <= text.length else { return nil }
-        var band: NSRect
-        if caret.location == text.length, layoutManager.extraLineFragmentTextContainer != nil || text.length == 0 {
-            // After a final line break: the empty last line.
-            layoutManager.ensureLayout(forCharacterRange: NSRange(location: max(text.length - 1, 0), length: min(text.length, 1)))
-            band = layoutManager.extraLineFragmentRect
-        } else {
-            let glyphs = layoutManager.glyphRange(forCharacterRange: text.lineRange(for: caret), actualCharacterRange: nil)
-            band = .null
-            layoutManager.enumerateLineFragments(forGlyphRange: glyphs) { rect, _, _, _, _ in band = band.union(rect) }
-        }
-        guard !band.isNull, band.height > 0 else { return nil }
-        return NSRect(x: 0, y: band.minY + textContainerOrigin.y, width: bounds.width, height: band.height)
+              let layoutManager, let storage = textStorage else { return nil }
+        let key = BandKey(caret: caret.location, length: storage.length, storage: ObjectIdentifier(storage),
+                          width: bounds.width, generation: layoutGeneration)
+        if let bandCache, bandCache.key == key { return bandCache.rect }
+        // Never lay out while the storage is mid-edit; ask again afterwards.
+        guard storage.editedMask.isEmpty else { return nil }
+        let rect = Self.lineBand(at: caret.location, in: storage.string as NSString, layoutManager: layoutManager)
+            .map { NSRect(x: 0, y: $0.minY + textContainerOrigin.y, width: bounds.width, height: $0.height) }
+        bandCache = (key, rect)
+        return rect
     }
 
-    /// Where the band was last drawn, so moving it repaints both places.
-    private var drawnCurrentLine: NSRect?
+    private struct BandKey: Equatable {
+        let caret: Int, length: Int, storage: ObjectIdentifier, width: CGFloat, generation: Int
+    }
 
-    private func refreshCurrentLine() {
-        let band = currentLineRect
-        guard band != drawnCurrentLine else { return }
-        if let old = drawnCurrentLine { setNeedsDisplay(old) }
-        if let band { setNeedsDisplay(band) }
-        drawnCurrentLine = band
+    private var bandCache: (key: BandKey, rect: NSRect?)?
+    /// Bumped when line geometry changes without the key noticing (an edit
+    /// of the same length, a new font, wrapping on or off).
+    private var layoutGeneration = 0
+    /// The band as last painted, so a move repaints where it really was.
+    private var paintedBand: NSRect?
+    private var bandRefreshPending = false
+
+    /// A very long line (minified JSON) is banded only this many rows around
+    /// the caret, so a caret move never lays out the whole line.
+    static let bandRowLimit = 200
+
+    /// Rows of the logical line around `caret`, in container coordinates.
+    private static func lineBand(at caret: Int, in text: NSString, layoutManager: NSLayoutManager) -> NSRect? {
+        if caret == text.length, text.length == 0 || isLineBreak(text.character(at: text.length - 1)) {
+            // After a final line break: the empty last line.
+            layoutManager.ensureLayout(forCharacterRange: NSRange(location: max(text.length - 1, 0), length: min(text.length, 1)))
+            let extra = layoutManager.extraLineFragmentRect
+            return extra.height > 0 ? extra : nil
+        }
+        var glyphs = NSRange()
+        let at = layoutManager.glyphIndexForCharacter(at: min(caret, text.length - 1))
+        var band = layoutManager.lineFragmentRect(forGlyphAt: at, effectiveRange: &glyphs)
+        var start = glyphs, end = glyphs
+        for _ in 0..<bandRowLimit {
+            let first = layoutManager.characterIndexForGlyph(at: start.location)
+            guard first > 0, !isLineBreak(text.character(at: first - 1)) else { break }
+            band = band.union(layoutManager.lineFragmentRect(forGlyphAt: start.location - 1, effectiveRange: &start))
+        }
+        for _ in 0..<bandRowLimit {
+            let next = layoutManager.characterIndexForGlyph(at: NSMaxRange(end))
+            guard NSMaxRange(end) > end.location, next < text.length, !isLineBreak(text.character(at: next - 1)) else { break }
+            band = band.union(layoutManager.lineFragmentRect(forGlyphAt: NSMaxRange(end), effectiveRange: &end))
+        }
+        return band.height > 0 ? band : nil
+    }
+
+    private static func isLineBreak(_ c: unichar) -> Bool {
+        c == 0x0A || c == 0x0D || c == 0x85 || c == 0x2028 || c == 0x2029
+    }
+
+    /// Line geometry changed: forget the band and repaint it later.
+    private func invalidateCurrentLine() {
+        layoutGeneration += 1
+        scheduleBandRefresh()
+    }
+
+    /// After the current event (and any storage edit) settles, repaint where
+    /// the band was and where it is now.
+    private func scheduleBandRefresh() {
+        guard !bandRefreshPending else { return }
+        bandRefreshPending = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.bandRefreshPending = false
+            let band = self.currentLineRect
+            guard band != self.paintedBand else { return }
+            if let old = self.paintedBand { self.setNeedsDisplay(old) }
+            if let band { self.setNeedsDisplay(band) }
+        }
     }
 
     override public func setSelectedRanges(_ ranges: [NSValue], affinity: NSSelectionAffinity, stillSelecting: Bool) {
         super.setSelectedRanges(ranges, affinity: affinity, stillSelecting: stillSelecting)
-        refreshCurrentLine()
+        scheduleBandRefresh()
     }
 
     override public func didChangeText() {
         super.didChangeText()
-        refreshCurrentLine()
+        invalidateCurrentLine()
+    }
+
+    override public func setFrameSize(_ newSize: NSSize) {
+        let rewraps = newSize.width != frame.width
+        super.setFrameSize(newSize)
+        if rewraps { invalidateCurrentLine() }
     }
 
     override public func drawBackground(in rect: NSRect) {
         super.drawBackground(in: rect)
-        guard let band = currentLineRect?.intersection(rect), !band.isEmpty else { return }
+        let band = currentLineRect
+        paintedBand = band
+        guard let band = band?.intersection(rect), !band.isEmpty else { return }
         NSColor.currentLine.setFill()
         band.fill(using: .sourceOver)
     }
@@ -240,6 +299,7 @@ public final class PlainTextView: NSTextView {
             container.size = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
             maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         }
+        invalidateCurrentLine()
         needsDisplay = true
     }
 }

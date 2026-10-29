@@ -137,4 +137,27 @@ final class CurrentLineTests: XCTestCase {
         XCTAssertEqual(controller.textView.frame.width, clip.bounds.width, accuracy: 1)
         XCTAssertEqual(controller.textView.currentLineRect?.width ?? 0, clip.bounds.width, accuracy: 1)
     }
+
+    func testAHugeSingleLineIsBandedOnlyAroundTheCaret() throws {
+        Preferences.wrapsLines = true
+        let (controller, window) = editor(String(repeating: "abcdefghij ", count: 50_000))
+        defer { window.close() }
+        let view = controller.textView
+        view.setSelectedRange(NSRange(location: 250_000, length: 0))
+        let band = try XCTUnwrap(view.currentLineRect)
+        let row = view.layoutManager!.defaultLineHeight(for: Preferences.font)
+        XCTAssertLessThanOrEqual(band.height, row * CGFloat(2 * PlainTextView.bandRowLimit + 1) + 1)
+    }
+
+    func testANewFontMovesTheBand() throws {
+        let (controller, window) = editor("one\ntwo\nthree\n")
+        defer { window.close() }
+        let view = controller.textView
+        view.setSelectedRange(NSRange(location: 5, length: 0))
+        let before = try XCTUnwrap(view.currentLineRect)
+        view.setFont(NSFont.monospacedSystemFont(ofSize: 30, weight: .regular))
+        let after = try XCTUnwrap(view.currentLineRect)
+        XCTAssertGreaterThan(after.height, before.height)
+        XCTAssertGreaterThan(after.minY, before.minY)
+    }
 }
