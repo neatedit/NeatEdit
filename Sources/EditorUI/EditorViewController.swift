@@ -39,7 +39,7 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
         textView.findController = findController
         view = EditorChrome.root(scrollView: scrollView, statusBar: statusBar, banner: banner, findBar: findController.bar)
         banner.onPrimary = { [weak self] in self?.resolveExternalChange() }
-        textView.onPasteUnwrapped = { [weak self] in self?.showHint("Unwrapped pasted text — ⌘Z for original") }
+        textView.onPasteUnwrapped = { [weak self] in self?.showHint(L10n.tr("Unwrapped pasted text — ⌘Z for original")) }
         banner.onDismiss = { [weak self] in self?.document?.dismissExternalChange() }
         statusBar.encodingButton.target = self
         statusBar.encodingButton.action = #selector(showEncodingMenu(_:))
@@ -295,9 +295,9 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
             result = try transform.apply(to: text)
         } catch {
             NSSound.beep()
-            return showHint((error as? TextTransform.Failure)?.message ?? "\(transform.title) failed")
+            return showHint((error as? TextTransform.Failure)?.message ?? L10n.tr("%@ failed", transform.title))
         }
-        guard result != text else { return showHint("\(transform.title): nothing to change") }
+        guard result != text else { return showHint(L10n.tr("%@: nothing to change", transform.title)) }
         if selection.length > 0 {
             guard textView.replace(range, with: result, asUndoStep: transform.title) else { return }
             textView.setSelectedRange(NSRange(location: range.location, length: (result as NSString).length))
@@ -349,8 +349,8 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
         guard let encoding = EditorChrome.encoding(of: sender), !applySaveEncoding(encoding),
               let window = view.window else { return }
         let alert = NSAlert()
-        alert.messageText = "This text can't be saved as \(TextFile.name(of: encoding))."
-        alert.informativeText = "Some characters don't exist in that encoding. The encoding was not changed."
+        alert.messageText = L10n.tr("This text can't be saved as %@.", TextFile.name(of: encoding))
+        alert.informativeText = L10n.tr("Some characters don't exist in that encoding. The encoding was not changed.")
         alert.beginSheetModal(for: window)
     }
 
@@ -375,7 +375,7 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
     func setLineEnding(_ ending: LineEnding) {
         guard ending != model.lineEnding else { return }
         let caret = textView.selectedRange().location
-        replaceAllText(with: ending.apply(to: model.storage.string), actionName: "Convert Line Endings") {
+        replaceAllText(with: ending.apply(to: model.storage.string), actionName: L10n.tr("Convert Line Endings")) {
             self.setFormat(self.model.file, lineEnding: ending)
         }
         textView.setSelectedRange(NSRange(location: min(caret, model.storage.length), length: 0))

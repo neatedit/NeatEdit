@@ -30,29 +30,28 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The command to link the bundled script into the PATH, ready to copy.
     static func commandLineToolAlert(script: URL?) -> NSAlert {
         let alert = NSAlert()
-        alert.messageText = "Install Command Line Tool"
+        alert.messageText = L10n.tr("Install Command Line Tool")
         guard let script else {
-            alert.informativeText = "This build of NeatEdit doesn't include the neatedit command."
-            alert.addButton(withTitle: "OK")
+            alert.informativeText = L10n.tr("This build of NeatEdit doesn't include the neatedit command.")
+            alert.addButton(withTitle: L10n.tr("OK"))
             return alert
         }
         // Opened straight from Downloads or a disk image: macOS runs it from a
         // random read-only copy, and a link to that breaks later.
         guard !script.path.contains("/AppTranslocation/") else {
-            alert.informativeText = "Move NeatEdit to the Applications folder and open it from there first."
-            alert.addButton(withTitle: "OK")
+            alert.informativeText = L10n.tr("Move NeatEdit to the Applications folder and open it from there first.")
+            alert.addButton(withTitle: L10n.tr("OK"))
             return alert
         }
-        alert.informativeText = "Run this in Terminal once to open files with “neatedit file.txt” "
-            + "(or “some-command | neatedit -”). Move NeatEdit to its final place first."
+        alert.informativeText = L10n.tr("Run this in Terminal once to open files with “neatedit file.txt” (or “some-command | neatedit -”). Move NeatEdit to its final place first.")
         let field = NSTextField(wrappingLabelWithString: CommandLineTool.installCommand(script: script.path))
         field.font = .monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
         field.isSelectable = true
         field.preferredMaxLayoutWidth = 360
         field.frame.size = field.fittingSize
         alert.accessoryView = field
-        alert.addButton(withTitle: "Copy Command")
-        alert.addButton(withTitle: "Done")
+        alert.addButton(withTitle: L10n.tr("Copy Command"))
+        alert.addButton(withTitle: L10n.tr("Done"))
         return alert
     }
 }
@@ -63,15 +62,15 @@ enum MainMenu {
         let main = NSMenu()
 
         main.addSubmenu(appName, [
-            item("About \(appName)", #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
+            item(localized: L10n.tr("About %@", appName), #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
             .separator(),
             item("Install Command Line Tool…", #selector(AppDelegate.installCommandLineTool(_:))),
             .separator(),
-            item("Hide \(appName)", #selector(NSApplication.hide(_:)), "h"),
+            item(localized: L10n.tr("Hide %@", appName), #selector(NSApplication.hide(_:)), "h"),
             item("Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]),
             item("Show All", #selector(NSApplication.unhideAllApplications(_:))),
             .separator(),
-            item("Quit \(appName)", #selector(NSApplication.terminate(_:)), "q"),
+            item(localized: L10n.tr("Quit %@", appName), #selector(NSApplication.terminate(_:)), "q"),
         ])
 
         main.addSubmenu("File", [
@@ -171,8 +170,16 @@ enum MainMenu {
         return main
     }
 
+    /// `title` is the English key; it's translated here.
     private static func item(
         _ title: String, _ action: Selector, _ key: String = "",
+        _ modifiers: NSEvent.ModifierFlags = .command
+    ) -> NSMenuItem {
+        item(localized: L10n.tr(title), action, key, modifiers)
+    }
+
+    private static func item(
+        localized title: String, _ action: Selector, _ key: String = "",
         _ modifiers: NSEvent.ModifierFlags = .command
     ) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
@@ -194,14 +201,14 @@ enum MainMenu {
     }
 
     private static func transform(_ transform: TextTransform) -> NSMenuItem {
-        let item = self.item(transform.title, #selector(EditorViewController.transformText(_:)))
+        let item = self.item(localized: transform.title, #selector(EditorViewController.transformText(_:)))
         item.tag = TextTransform.allCases.firstIndex(of: transform)!
         return item
     }
 
     private static func submenu(_ title: String, _ items: [NSMenuItem]) -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-        let menu = NSMenu(title: title)
+        let item = NSMenuItem(title: L10n.tr(title), action: nil, keyEquivalent: "")
+        let menu = NSMenu(title: L10n.tr(title))
         items.forEach(menu.addItem)
         item.submenu = menu
         return item
@@ -218,8 +225,8 @@ enum MainMenu {
 private extension NSMenu {
     @discardableResult
     func addSubmenu(_ title: String, _ items: [NSMenuItem]) -> NSMenu {
-        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-        let menu = NSMenu(title: title)
+        let item = NSMenuItem(title: L10n.tr(title), action: nil, keyEquivalent: "")
+        let menu = NSMenu(title: L10n.tr(title))
         items.forEach(menu.addItem)
         item.submenu = menu
         addItem(item)

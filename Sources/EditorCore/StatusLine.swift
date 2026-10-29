@@ -39,16 +39,16 @@ public struct StatusLine: Equatable, Sendable {
         lineEnding: LineEnding
     ) {
         let approx = position.isApproximate ? "~" : ""
-        var left = "Ln \(Self.format(position.line)), Col \(approx)\(Self.format(position.column))"
-            + "   Pos \(approx)\(Self.format(position.offset))"
-            + "   Line \(approx)\(Self.format(position.lineLength)) chars"
+        var left = L10n.tr("Ln %@, Col %@", Self.format(position.line), approx + Self.format(position.column))
+            + "   " + L10n.tr("Pos %@", approx + Self.format(position.offset))
+            + "   " + L10n.tr("Line %@ chars", approx + Self.format(position.lineLength))
         if let selection {
-            left += "   Sel \(Self.format(selection))"
+            left += "   " + L10n.tr("Sel %@", Self.format(selection))
         }
         self.left = left
 
         let total = totalCharacters.map(Self.format) ?? "…"
-        totals = "\(total) chars, \(Self.format(lines)) lines"
+        totals = L10n.tr("%@ chars, %@ lines", total, Self.format(lines))
         self.encoding = encoding
         self.lineEnding = lineEnding
     }

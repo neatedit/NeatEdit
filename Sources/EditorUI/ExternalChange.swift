@@ -5,8 +5,8 @@ import EditorCore
 /// It waits for the user; nothing pops up on its own.
 final class ExternalChangeBanner: NSView {
     let message = NSTextField(labelWithString: "")
-    let primaryButton = NSButton(title: "Review Changes", target: nil, action: nil)
-    let dismissButton = NSButton(title: "Dismiss", target: nil, action: nil)
+    let primaryButton = NSButton(title: L10n.tr("Review Changes"), target: nil, action: nil)
+    let dismissButton = NSButton(title: L10n.tr("Dismiss"), target: nil, action: nil)
     var onPrimary: (() -> Void)?
     var onDismiss: (() -> Void)?
 
@@ -46,19 +46,19 @@ final class ExternalChangeBanner: NSView {
             isHidden = true
         case .changed(let merge, _):
             isHidden = false
-            message.stringValue = "File changed on disk"
+            message.stringValue = L10n.tr("File changed on disk")
             primaryButton.isHidden = false
             primaryButton.isEnabled = true
-            primaryButton.title = merge.isBig ? "Save My Version As…" : "Review Changes"
+            primaryButton.title = merge.isBig ? L10n.tr("Save My Version As…") : L10n.tr("Review Changes")
         case .checking:
             isHidden = false
-            message.stringValue = "File changed on disk"
+            message.stringValue = L10n.tr("File changed on disk")
             primaryButton.isHidden = false
             primaryButton.isEnabled = false
-            primaryButton.title = "Comparing…"
+            primaryButton.title = L10n.tr("Comparing…")
         case .deleted:
             isHidden = false
-            message.stringValue = "Deleted from disk"
+            message.stringValue = L10n.tr("Deleted from disk")
             primaryButton.isHidden = true
         }
     }
@@ -96,10 +96,10 @@ final class ChangeReviewController: NSViewController {
     var rowCount: Int { rows.arrangedSubviews.count }
 
     override func loadView() {
-        let title = NSTextField(labelWithString: "Changes made on disk")
+        let title = NSTextField(labelWithString: L10n.tr("Changes made on disk"))
         title.font = .boldSystemFont(ofSize: NSFont.systemFontSize)
         let info = NSTextField(wrappingLabelWithString:
-            "Choose which changes to bring into your text. Changes you don't decide on are skipped.")
+            L10n.tr("Choose which changes to bring into your text. Changes you don't decide on are skipped."))
         info.textColor = .secondaryLabelColor
 
         rows.orientation = .vertical
@@ -122,9 +122,9 @@ final class ChangeReviewController: NSViewController {
             document.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
         ])
 
-        let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancel(_:)))
+        let cancel = NSButton(title: L10n.tr("Cancel"), target: self, action: #selector(cancel(_:)))
         cancel.keyEquivalent = "\u{1b}"
-        let apply = NSButton(title: "Apply", target: self, action: #selector(apply(_:)))
+        let apply = NSButton(title: L10n.tr("Apply"), target: self, action: #selector(apply(_:)))
         apply.keyEquivalent = "\r"
         let buttons = NSStackView(views: [NSView(), cancel, apply])
 
@@ -176,13 +176,15 @@ final class ChangeReviewController: NSViewController {
 
     private func row(for hunk: ExternalHunk) -> NSView {
         let first = hunk.base.oldRange.lowerBound + 1
-        var heading = hunk.base.oldRange.count > 1 ? "Lines \(first)–\(hunk.base.oldRange.upperBound)" : "Line \(first)"
-        if hunk.isConflict { heading += " — you edited these lines too" }
+        var heading = hunk.base.oldRange.count > 1
+            ? L10n.tr("Lines %ld–%ld", first, hunk.base.oldRange.upperBound) : L10n.tr("Line %ld", first)
+        if hunk.isConflict { heading += " — " + L10n.tr("you edited these lines too") }
         let label = NSTextField(labelWithString: heading)
         label.font = .boldSystemFont(ofSize: NSFont.smallSystemFontSize)
         label.textColor = hunk.isConflict ? .systemOrange : .labelColor
 
-        let titles = hunk.isConflict ? ["Take Disk", "Keep Mine"] : ["Accept", "Skip"]
+        let titles = hunk.isConflict
+            ? [L10n.tr("Take Disk"), L10n.tr("Keep Mine")] : [L10n.tr("Accept"), L10n.tr("Skip")]
         let control = NSSegmentedControl(labels: titles, trackingMode: .selectOne, target: self, action: #selector(choose(_:)))
         control.controlSize = .small
         control.tag = hunk.id
@@ -213,12 +215,12 @@ final class ChangeReviewController: NSViewController {
                 out.append(NSAttributedString(string: prefix + line + "\n", attributes: [.font: font, .foregroundColor: color]))
             }
             if lines.count > maxLinesPerSide {
-                out.append(NSAttributedString(string: "  … \(lines.count - maxLinesPerSide) more lines\n",
+                out.append(NSAttributedString(string: "  … " + L10n.tr("%ld more lines", lines.count - maxLinesPerSide) + "\n",
                                               attributes: [.font: font, .foregroundColor: NSColor.secondaryLabelColor]))
             }
         }
         if hunk.isConflict {
-            add(hunk.mineLines, "  mine  ", .systemOrange)
+            add(hunk.mineLines, "  " + L10n.tr("mine") + "  ", .systemOrange)
         }
         add(hunk.oldLines, "  −  ", .systemRed)
         add(hunk.base.newLines, "  +  ", .systemGreen)

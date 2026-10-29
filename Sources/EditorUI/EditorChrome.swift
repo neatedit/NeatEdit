@@ -157,7 +157,7 @@ enum EditorChrome {
     /// sections; items carry the encoding's raw value and call `target`.
     static func encodingMenu(current: String.Encoding, reopen: Selector?, save: Selector?, target: AnyObject) -> NSMenu {
         let menu = NSMenu()
-        for (title, action) in [("Reopen with Encoding", reopen), ("Save with Encoding", save)] {
+        for (title, action) in [(L10n.tr("Reopen with Encoding"), reopen), (L10n.tr("Save with Encoding"), save)] {
             guard let action else { continue }
             if !menu.items.isEmpty { menu.addItem(.separator()) }
             menu.addItem(.sectionHeader(title: title))
@@ -179,12 +179,12 @@ enum EditorChrome {
     /// Sheet asking for "line" or "line:column"; calls back only with valid input.
     static func askForLine(on window: NSWindow, _ completion: @escaping (GoToLine) -> Void) {
         let alert = NSAlert()
-        alert.messageText = "Go to Line"
-        alert.informativeText = "Line, or line:column"
-        alert.addButton(withTitle: "Go")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = L10n.tr("Go to Line")
+        alert.informativeText = L10n.tr("Line, or line:column")
+        alert.addButton(withTitle: L10n.tr("Go"))
+        alert.addButton(withTitle: L10n.tr("Cancel"))
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 200, height: 24))
-        field.placeholderString = "e.g. 120 or 120:5"
+        field.placeholderString = L10n.tr("e.g. 120 or 120:5")
         alert.accessoryView = field
         alert.window.initialFirstResponder = field
         alert.beginSheetModal(for: window) { response in
