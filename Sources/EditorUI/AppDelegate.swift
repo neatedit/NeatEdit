@@ -1,4 +1,5 @@
 import AppKit
+import EditorCore
 
 public final class AppDelegate: NSObject, NSApplicationDelegate {
     override public init() {
@@ -73,11 +74,20 @@ enum MainMenu {
                 item("Jump to Selection", #selector(NSTextView.centerSelectionInVisibleArea(_:)), "j"),
             ]),
             item("Go to Line…", #selector(EditorViewController.goToLine(_:)), "l"),
+        ])
+
+        // Each acts on the selection, or on the whole text when nothing is selected.
+        main.addSubmenu("Text", [
+            transform(.uppercase), transform(.lowercase), transform(.titleCase),
             .separator(),
-            item("Uppercase", #selector(NSResponder.uppercaseWord(_:))),
-            item("Lowercase", #selector(NSResponder.lowercaseWord(_:))),
-            item("Capitalize", #selector(NSResponder.capitalizeWord(_:))),
-            item("Unwrap Lines", #selector(EditorViewController.unwrapLines(_:))),
+            transform(.sortLines), transform(.removeDuplicateLines), transform(.removeEmptyLines),
+            transform(.trimTrailingWhitespace), transform(.joinLines), transform(.unwrapLines),
+            .separator(),
+            transform(.tabsToSpaces), transform(.spacesToTabs),
+            .separator(),
+            transform(.formatJSON), transform(.minifyJSON),
+            .separator(),
+            transform(.base64Encode), transform(.base64Decode), transform(.urlEncode), transform(.urlDecode),
         ])
 
         main.addSubmenu("View", [
@@ -124,6 +134,12 @@ enum MainMenu {
     ) -> NSMenuItem {
         let item = self.item(title, #selector(NSTextView.performFindPanelAction(_:)), key, modifiers)
         item.tag = action.rawValue
+        return item
+    }
+
+    private static func transform(_ transform: TextTransform) -> NSMenuItem {
+        let item = self.item(transform.title, #selector(EditorViewController.transformText(_:)))
+        item.tag = TextTransform.allCases.firstIndex(of: transform)!
         return item
     }
 

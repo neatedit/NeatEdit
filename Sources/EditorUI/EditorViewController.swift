@@ -256,15 +256,46 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
     @objc func toggleWrapLines(_ sender: Any?) { Preferences.wrapsLines.toggle() }
     @objc func toggleUnwrapPastedText(_ sender: Any?) { Preferences.unwrapsPastedText.toggle() }
 
-    /// Joins hard-wrapped lines in the selection, as one undo step.
-    @objc func unwrapLines(_ sender: Any?) {
-        let range = textView.selectedRange()
-        guard range.length > 0 else { return NSSound.beep() }
-        let text = (model.storage.string as NSString).substring(with: range)
-        let unwrapped = TextUnwrap.unwrap(text)
-        guard unwrapped != text else { return }
-        guard textView.replace(range, with: unwrapped, asUndoStep: "Unwrap Lines") else { return }
-        textView.setSelectedRange(NSRange(location: range.location, length: (unwrapped as NSString).length))
+    /// Text menu items: the tag is the transform's index in `allCases`.
+    @objc func transformText(_ sender: Any?) {
+        guard let tag = (sender as? NSValidatedUserInterfaceItem)?.tag,
+              TextTransform.allCases.indices.contains(tag) else { return }
+        apply(TextTransform.allCases[tag])
+    }
+
+    /// Converts the selection, or the whole document when nothing is
+    /// selected, as one undo step. Line transforms take whole lines.
+    func apply(_ transform: TextTransform) {
+        let storage = model.storage.string as NSString
+        let selection = textView.selectedRange()
+        var range = selection.length > 0 ? selection : NSRange(location: 0, length: storage.length)
+        if transform.worksOnWholeLines { range = Self.wholeLines(range, in: storage) }
+        let text = storage.substring(with: range)
+        let result: String
+        do {
+            result = try transform.apply(to: text)
+        } catch {
+            NSSound.beep()
+            return showHint((error as? TextTransform.Failure)?.message ?? "\(transform.title) failed")
+        }
+        guard result != text else { return showHint("\(transform.title): nothing to change") }
+        if selection.length > 0 {
+            guard textView.replace(range, with: result, asUndoStep: transform.title) else { return }
+            textView.setSelectedRange(NSRange(location: range.location, length: (result as NSString).length))
+        } else {
+            replaceAllText(with: storage.replacingCharacters(in: range, with: result), actionName: transform.title)
+        }
+    }
+
+    /// `range` grown to the lines it touches, without the last line break.
+    /// A selection that ends right after a line break stops at that line.
+    static func wholeLines(_ range: NSRange, in text: NSString) -> NSRange {
+        let last = range.length > 0 ? NSMaxRange(range) - 1 : range.location
+        let start = text.lineRange(for: NSRange(location: range.location, length: 0)).location
+        var end = NSMaxRange(text.lineRange(for: NSRange(location: last, length: 0)))
+        if end > start, text.character(at: end - 1) == 0x0A { end -= 1 }
+        if end > start, text.character(at: end - 1) == 0x0D { end -= 1 }
+        return NSRange(location: start, length: end - start)
     }
     @objc func toggleLineNumbers(_ sender: Any?) { Preferences.showsLineNumbers.toggle() }
     @objc func showFontPanel(_ sender: Any?) { Preferences.showFontPanel() }
@@ -351,9 +382,7 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
         if menuItem.action == #selector(toggleUnwrapPastedText(_:)) {
             menuItem.state = Preferences.unwrapsPastedText ? .on : .off
         }
-        if menuItem.action == #selector(unwrapLines(_:)) {
-            return textView.isEditable && textView.selectedRange().length > 0
-        }
+        if menuItem.action == #selector(transformText(_:)) { return textView.isEditable }
         return true
     }
 }
