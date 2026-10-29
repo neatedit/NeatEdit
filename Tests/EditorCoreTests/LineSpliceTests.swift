@@ -148,4 +148,17 @@ struct LineSpliceTests {
         #expect(pick(text, around: NSRange(location: 0, length: 0), encoding: .utf32LittleEndian).byteOffset == nil)
         #expect(LineSplice.byteCount(of: NSRange(location: 0, length: 100), in: "abc", encoding: .utf8) == nil)
     }
+
+    @Test func onlyTypedLineBreaksTakeTheChunksEnding() {
+        // Untouched text comes back byte for byte, whatever it holds.
+        let mixed = "progress 10%\rprogress 20%\r\nlf only\nend"
+        #expect(LineSplice.matchingLineBreaks(mixed, original: mixed) == mixed)
+        #expect(LineSplice.matchingLineBreaks(mixed + "\nnew", original: mixed) == mixed + "\nnew", "mixed: leave it")
+        // An all-CRLF chunk: a typed LF becomes CRLF; a lone CR inside a line stays.
+        let crlf = "a 10%\r20%\r\nb\r\nc"
+        #expect(LineSplice.matchingLineBreaks("a 10%\r20%\r\nb\nadded\r\nc", original: crlf) == "a 10%\r20%\r\nb\r\nadded\r\nc")
+        #expect(LineSplice.matchingLineBreaks("x\ny", original: "a\rb") == "x\ry")
+        #expect(LineSplice.matchingLineBreaks("x\ny", original: "a\nb") == "x\ny")
+        #expect(LineSplice.matchingLineBreaks("x\ny", original: "single line") == "x\ny")
+    }
 }

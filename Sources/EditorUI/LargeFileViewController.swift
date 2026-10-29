@@ -89,7 +89,7 @@ final class LargeFileViewController: NSViewController, TailFollowing, NSMenuItem
                                      encoding: model.file.encoding, hasBOM: model.file.hasBOM)
         let editor = LineEditorController(chunk: chunk)
         editor.onSave = { [weak document] text, done in
-            guard let document else { return done(nil) }
+            guard let document else { return done(CocoaError(.fileNoSuchFile)) }
             document.writeLines(text, over: chunk, completion: done)
         }
         presentAsSheet(editor)

@@ -47,6 +47,32 @@ public enum LineSplice {
                      byteOffset: offset, encoding: encoding)
     }
 
+    /// Return in a text view types LF. When the chunk's own line breaks are
+    /// all CRLF (or all CR), the LFs that came in that way get the same
+    /// break; anything else in the text, lone CRs included, is left exactly
+    /// as it is, so unedited lines never change.
+    public static func matchingLineBreaks(_ edited: String, original: String) -> String {
+        let text = original as NSString
+        let hasCRLF = text.range(of: "\r\n").location != NSNotFound
+        let bareLF = original.replacingOccurrences(of: "\r\n", with: "").contains("\n")
+        let target: String
+        if hasCRLF, !bareLF {
+            target = "\r\n"
+        } else if !hasCRLF, !bareLF, original.contains("\r") {
+            target = "\r"
+        } else {
+            return edited
+        }
+        var result = ""
+        var previous: Character?
+        for character in edited {
+            // "\r\n" is one Character in Swift; a lone "\n" is a typed break.
+            result += character == "\n" && previous != "\r" ? target : String(character)
+            previous = character
+        }
+        return result
+    }
+
     /// Encodings where a character's bytes don't depend on what's around it,
     /// so a byte offset can be counted from the decoded text.
     public static func supports(_ encoding: String.Encoding) -> Bool {
