@@ -40,6 +40,8 @@ neatedit notes.txt app.log    # open files (a missing file is created empty)
 some-command | neatedit -     # open stdin
 ```
 
+The app also carries the script: NeatEdit ▸ Install Command Line Tool… shows the one-time command that links it into `/usr/local/bin` (the App Store build can't do that itself).
+
 ## Layout
 
 - `Sources/EditorCore` — pure logic: line index, cursor position, decoding, status text, navigation, viewer geometry, find queries.

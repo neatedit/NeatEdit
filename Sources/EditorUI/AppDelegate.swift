@@ -19,6 +19,35 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func newTab(_ sender: Any?) {
         NSDocumentController.shared.newDocument(sender)
     }
+
+    @objc func installCommandLineTool(_ sender: Any?) {
+        let alert = Self.commandLineToolAlert(script: Bundle.main.url(forResource: "neatedit", withExtension: nil))
+        guard alert.runModal() == .alertFirstButtonReturn, let field = alert.accessoryView as? NSTextField else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(field.stringValue, forType: .string)
+    }
+
+    /// The command to link the bundled script into the PATH, ready to copy.
+    static func commandLineToolAlert(script: URL?) -> NSAlert {
+        let alert = NSAlert()
+        alert.messageText = "Install Command Line Tool"
+        guard let script else {
+            alert.informativeText = "This build of NeatEdit doesn't include the neatedit command."
+            alert.addButton(withTitle: "OK")
+            return alert
+        }
+        alert.informativeText = "Run this in Terminal once to open files with “neatedit file.txt” "
+            + "(or “some-command | neatedit -”). Move NeatEdit to its final place first."
+        let field = NSTextField(wrappingLabelWithString: CommandLineTool.installCommand(script: script.path))
+        field.font = .monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
+        field.isSelectable = true
+        field.preferredMaxLayoutWidth = 360
+        field.frame.size = field.fittingSize
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Copy Command")
+        alert.addButton(withTitle: "Done")
+        return alert
+    }
 }
 
 enum MainMenu {
@@ -28,6 +57,8 @@ enum MainMenu {
 
         main.addSubmenu(appName, [
             item("About \(appName)", #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
+            .separator(),
+            item("Install Command Line Tool…", #selector(AppDelegate.installCommandLineTool(_:))),
             .separator(),
             item("Hide \(appName)", #selector(NSApplication.hide(_:)), "h"),
             item("Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]),
