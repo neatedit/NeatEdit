@@ -743,7 +743,9 @@ public final class TextDocument: NSDocument {
 
     /// "notes.txt" → "notes (my version).txt"
     static func myVersionName(for url: URL) -> String {
-        let name = url.deletingPathExtension().lastPathComponent + " " + L10n.tr("(my version)")
+        // A translation must not turn into a path.
+        let mine = L10n.tr("(my version)").replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+        let name = url.deletingPathExtension().lastPathComponent + " " + mine
         return url.pathExtension.isEmpty ? name : name + "." + url.pathExtension
     }
 

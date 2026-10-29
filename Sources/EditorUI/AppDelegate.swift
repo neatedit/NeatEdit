@@ -62,15 +62,15 @@ enum MainMenu {
         let main = NSMenu()
 
         main.addSubmenu(appName, [
-            item(L10n.tr("About %@", appName), #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
+            item(localized: L10n.tr("About %@", appName), #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
             .separator(),
             item("Install Command Line Tool…", #selector(AppDelegate.installCommandLineTool(_:))),
             .separator(),
-            item(L10n.tr("Hide %@", appName), #selector(NSApplication.hide(_:)), "h"),
+            item(localized: L10n.tr("Hide %@", appName), #selector(NSApplication.hide(_:)), "h"),
             item("Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]),
             item("Show All", #selector(NSApplication.unhideAllApplications(_:))),
             .separator(),
-            item(L10n.tr("Quit %@", appName), #selector(NSApplication.terminate(_:)), "q"),
+            item(localized: L10n.tr("Quit %@", appName), #selector(NSApplication.terminate(_:)), "q"),
         ])
 
         main.addSubmenu("File", [
@@ -170,11 +170,19 @@ enum MainMenu {
         return main
     }
 
+    /// `title` is the English key; it's translated here.
     private static func item(
         _ title: String, _ action: Selector, _ key: String = "",
         _ modifiers: NSEvent.ModifierFlags = .command
     ) -> NSMenuItem {
-        let item = NSMenuItem(title: L10n.tr(title), action: action, keyEquivalent: key)
+        item(localized: L10n.tr(title), action, key, modifiers)
+    }
+
+    private static func item(
+        localized title: String, _ action: Selector, _ key: String = "",
+        _ modifiers: NSEvent.ModifierFlags = .command
+    ) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
         item.keyEquivalentModifierMask = modifiers
         return item
     }
@@ -193,7 +201,7 @@ enum MainMenu {
     }
 
     private static func transform(_ transform: TextTransform) -> NSMenuItem {
-        let item = self.item(transform.title, #selector(EditorViewController.transformText(_:)))
+        let item = self.item(localized: transform.title, #selector(EditorViewController.transformText(_:)))
         item.tag = TextTransform.allCases.firstIndex(of: transform)!
         return item
     }
