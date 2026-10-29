@@ -86,6 +86,12 @@ enum MainMenu {
             item("Rename…", #selector(NSDocument.rename(_:))),
             item("Move To…", #selector(NSDocument.move(_:))),
             item("Revert To Saved", #selector(NSDocument.revertToSaved(_:))),
+            .separator(),
+            item("Copy Path", #selector(TextDocument.copyPath(_:))),
+            item("Show in Finder", #selector(TextDocument.showInFinder(_:))),
+            .separator(),
+            item("Page Setup…", #selector(NSDocument.runPageLayout(_:)), "p", [.command, .shift]),
+            item("Print…", #selector(NSDocument.printDocument(_:)), "p"),
         ])
 
         main.addSubmenu("Edit", [

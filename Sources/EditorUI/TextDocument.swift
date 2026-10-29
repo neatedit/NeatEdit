@@ -175,9 +175,7 @@ public final class TextDocument: NSDocument {
             ? LargeFileViewController(model: model)
             : EditorViewController(model: model)
         let window = NSWindow(contentViewController: controller)
-        if controller is LargeFileViewController {
-            window.subtitle = "Read-only (large file)"
-        }
+        window.subtitle = Self.subtitle(for: fileURL, home: Self.homeDirectory, viewer: opensInViewer == true)
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.tabbingMode = .preferred
         window.tabbingIdentifier = "NeatEdit"
@@ -193,11 +191,80 @@ public final class TextDocument: NSDocument {
     override public var fileURL: URL? {
         didSet {
             guard !Self.sameFile(oldValue, fileURL), !windowControllers.isEmpty else { return }
+            let subtitle = Self.subtitle(for: fileURL, home: Self.homeDirectory, viewer: isViewer)
+            windowControllers.forEach { $0.window?.subtitle = subtitle }
             // Moved, not deleted: show and follow the file where it is now.
             if case .deleted = externalState { resetExternalState() }
             watchForAppends()
             scheduleDiskCheck()
         }
+    }
+
+    // MARK: Where the file is
+
+    /// The folder under the name in the title bar, home shortened to "~".
+    static func subtitle(for url: URL?, home: String, viewer: Bool) -> String {
+        let note = viewer ? "Read-only (large file)" : ""
+        guard let url else { return note }
+        var folder = url.deletingLastPathComponent().path
+        if folder == home {
+            folder = "~"
+        } else if folder.hasPrefix(home + "/") {
+            folder = "~" + folder.dropFirst(home.count)
+        }
+        return note.isEmpty ? folder : "\(folder) — \(note)"
+    }
+
+    /// The user's real home: in the sandbox NSHomeDirectory() is the container.
+    static let homeDirectory: String = {
+        guard let entry = getpwuid(getuid()), let dir = entry.pointee.pw_dir else { return NSHomeDirectory() }
+        return String(cString: dir)
+    }()
+
+    @objc func copyPath(_ sender: Any?) { copyPath(to: .general) }
+
+    func copyPath(to pasteboard: NSPasteboard) {
+        guard let fileURL else { return }
+        pasteboard.clearContents()
+        pasteboard.setString(fileURL.path, forType: .string)
+    }
+
+    @objc func showInFinder(_ sender: Any?) {
+        guard let fileURL else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+    }
+
+    override public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        switch menuItem.action {
+        case #selector(copyPath(_:)), #selector(showInFinder(_:)): return fileURL != nil
+        // Hundreds of MB of pages is never what's meant.
+        case #selector(printDocument(_:)): return !isViewer && super.validateMenuItem(menuItem)
+        default: return super.validateMenuItem(menuItem)
+        }
+    }
+
+    // MARK: Printing
+
+    /// The text as plain text in the editor font, wrapped to the page width.
+    override public func printOperation(withSettings printSettings: [NSPrintInfo.AttributeKey: Any]) throws -> NSPrintOperation {
+        guard !isViewer else { throw CocoaError(.userCancelled) }
+        let info = printInfo.copy() as! NSPrintInfo
+        info.dictionary().addEntries(from: printSettings)
+        info.horizontalPagination = .fit
+        info.verticalPagination = .automatic
+        info.isVerticallyCentered = false
+        // Between the Page Setup margins, which is where the operation lays it out.
+        let width = info.paperSize.width - info.leftMargin - info.rightMargin
+        let view = NSTextView(frame: NSRect(x: 0, y: 0, width: width, height: 0))
+        view.maxSize = NSSize(width: width, height: .greatestFiniteMagnitude)
+        view.isRichText = false
+        view.textContainerInset = .zero
+        view.textContainer?.lineFragmentPadding = 0
+        view.isVerticallyResizable = true
+        view.string = currentModel().storage.string
+        view.font = Preferences.font
+        view.sizeToFit()
+        return NSPrintOperation(view: view, printInfo: info)
     }
 
     /// New text gets ".txt"; files that already exist keep whatever name they have.

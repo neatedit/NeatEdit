@@ -14,6 +14,7 @@ A small, native macOS plain-text editor (Swift + AppKit, no dependencies).
 - View ▸ Show Invisibles (⌥⌘I): · space, → tab, ° no-break space, ¬ line end — in the editor and the viewer.
 - Edit ▸ Go to Line… (⌘L), Go to Beginning (⌘↑), Go to End (⌘↓). In the viewer, Go to End also starts following new lines.
 - New documents save as `.txt` by default.
+- The window shows the file's folder under its name; File ▸ Copy Path and Show in Finder. File ▸ Print… (⌘P) prints the text in the editor font, wrapped to the page (not in the large file viewer).
 - Files over ~20 MB open in a read-only viewer that stays instant at hundreds of MB (select, copy, find with the same placeholder bar as the editor — no replace — and go to line). It follows a growing file like `tail -f`: only the added bytes are read, and when you're at the bottom the view keeps up with new lines (scroll up and it stays put). A truncated, rewritten or recreated file is reloaded whole.
 
 ## Build
