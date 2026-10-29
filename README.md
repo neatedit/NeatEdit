@@ -12,6 +12,7 @@ A small, native macOS plain-text editor (Swift + AppKit, no dependencies).
 - Text menu: UPPERCASE / lowercase / Title Case; sort lines (natural order), remove duplicate or empty lines, trim trailing whitespace, join lines, unwrap lines; tabs ↔ spaces (tab width 4, Spaces to Tabs touches indentation only); format / minify JSON (key order and numbers kept as written); Base64 and URL encode / decode. Each acts on the selection — line commands take whole lines — or on the whole text when nothing is selected, as one ⌘Z. Invalid JSON or Base64 leaves the text alone and says why in the status bar.
 - Edit ▸ Duplicate Line (⌘D — a selection within a line is duplicated in place), Move Line Up / Down (⌥↑ / ⌥↓, one ⌘Z each). ⌥-drag makes a column selection; copy gives the column.
 - View ▸ Show Invisibles (⌥⌘I): · space, → tab, ° no-break space, ¬ line end — in the editor and the viewer.
+- View ▸ Highlight Current Line (on by default): a soft yellow band behind the caret's line (every wrapped row of it), fainter in dark mode — in the editor and the viewer.
 - Edit ▸ Go to Line… (⌘L), Go to Beginning (⌘↑), Go to End (⌘↓). In the viewer, Go to End also starts following new lines.
 - New documents save as `.txt` by default.
 - The window shows the file's folder under its name; File ▸ Copy Path and Show in Finder. File ▸ Print… (⌘P) prints the text in the editor font, wrapped to the page (not in the large file viewer).

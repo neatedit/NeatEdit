@@ -74,9 +74,11 @@ final class LargeFileViewController: NSViewController, TailFollowing, NSMenuItem
     @objc private func preferencesChanged() {
         textView.setFont(Preferences.font)
         textView.showsInvisibles = Preferences.showsInvisibles
+        textView.highlightsCurrentLine = Preferences.highlightsCurrentLine
     }
 
     @objc func toggleInvisibles(_ sender: Any?) { Preferences.showsInvisibles.toggle() }
+    @objc func toggleCurrentLine(_ sender: Any?) { Preferences.highlightsCurrentLine.toggle() }
 
     @objc func makeTextBigger(_ sender: Any?) { Preferences.fontSize += 1 }
     @objc func makeTextSmaller(_ sender: Any?) { Preferences.fontSize -= 1 }
@@ -118,6 +120,9 @@ final class LargeFileViewController: NSViewController, TailFollowing, NSMenuItem
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(toggleInvisibles(_:)) {
             menuItem.state = Preferences.showsInvisibles ? .on : .off
+        }
+        if menuItem.action == #selector(toggleCurrentLine(_:)) {
+            menuItem.state = Preferences.highlightsCurrentLine ? .on : .off
         }
         // Lines never wrap or get numbered in the viewer.
         return menuItem.action != #selector(EditorViewController.toggleWrapLines(_:))

@@ -12,6 +12,18 @@ final class LargeTextView: NSView, NSMenuItemValidation {
     private(set) var selection = NSRange(location: 0, length: 0)
     var onSelectionChange: (() -> Void)?
     weak var findController: FindController?
+    var highlightsCurrentLine = Preferences.highlightsCurrentLine {
+        didSet { if highlightsCurrentLine != oldValue { needsDisplay = true } }
+    }
+
+    /// The caret's line across the view; nil while text is selected or when off.
+    var currentLineRect: NSRect? {
+        guard highlightsCurrentLine, selection.length == 0 else { return nil }
+        return lineRect(forLine: model.lineIndex.line(containing: selection.location))
+    }
+
+    func lineRect(forLine line: Int) -> NSRect { layout.lineRect(line, width: bounds.width) }
+
     var showsInvisibles = Preferences.showsInvisibles {
         didSet { if showsInvisibles != oldValue { needsDisplay = true } }
     }
@@ -84,7 +96,15 @@ final class LargeTextView: NSView, NSMenuItemValidation {
     override func viewDidMoveToSuperview() {
         super.viewDidMoveToSuperview()
         updateFrameSize()
+        // Fill the scroll view as the window resizes, not just its first size.
+        NotificationCenter.default.removeObserver(self, name: NSView.frameDidChangeNotification, object: nil)
+        guard let clip = enclosingScrollView?.contentView else { return }
+        clip.postsFrameChangedNotifications = true
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(clipDidResize), name: NSView.frameDidChangeNotification, object: clip)
     }
+
+    @objc private func clipDidResize() { updateFrameSize() }
 
     // MARK: Line geometry
 
@@ -150,6 +170,10 @@ final class LargeTextView: NSView, NSMenuItemValidation {
         let lines = layout.lines(in: dirtyRect, lineCount: model.lineIndex.lineCount)
         let visibleX = dirtyRect.minX..<dirtyRect.maxX
         let isActive = window?.firstResponder === self && window?.isKeyWindow == true
+        if let band = currentLineRect?.intersection(dirtyRect), !band.isEmpty {
+            NSColor.currentLine.setFill()
+            band.fill(using: .sourceOver)
+        }
         let selectionColor = isActive ? NSColor.selectedTextBackgroundColor : NSColor.unemphasizedSelectedTextBackgroundColor
         guard let context = NSGraphicsContext.current?.cgContext else { return }
 

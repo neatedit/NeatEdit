@@ -165,6 +165,61 @@ public final class PlainTextView: NSTextView {
         }
     }
 
+    var highlightsCurrentLine = true {
+        didSet { if highlightsCurrentLine != oldValue { refreshCurrentLine() } }
+    }
+
+    /// The caret's whole line (every wrapped row), across the view, in view
+    /// coordinates. Nil while text is selected or when off.
+    var currentLineRect: NSRect? {
+        let ranges = selectedRanges.map(\.rangeValue)
+        guard highlightsCurrentLine, ranges.count == 1, let caret = ranges.first, caret.length == 0,
+              let layoutManager else { return nil }
+        let text = string as NSString
+        // Mid-swap (a new model) the old selection can point past the end.
+        guard caret.location <= text.length else { return nil }
+        var band: NSRect
+        if caret.location == text.length, layoutManager.extraLineFragmentTextContainer != nil || text.length == 0 {
+            // After a final line break: the empty last line.
+            layoutManager.ensureLayout(forCharacterRange: NSRange(location: max(text.length - 1, 0), length: min(text.length, 1)))
+            band = layoutManager.extraLineFragmentRect
+        } else {
+            let glyphs = layoutManager.glyphRange(forCharacterRange: text.lineRange(for: caret), actualCharacterRange: nil)
+            band = .null
+            layoutManager.enumerateLineFragments(forGlyphRange: glyphs) { rect, _, _, _, _ in band = band.union(rect) }
+        }
+        guard !band.isNull, band.height > 0 else { return nil }
+        return NSRect(x: 0, y: band.minY + textContainerOrigin.y, width: bounds.width, height: band.height)
+    }
+
+    /// Where the band was last drawn, so moving it repaints both places.
+    private var drawnCurrentLine: NSRect?
+
+    private func refreshCurrentLine() {
+        let band = currentLineRect
+        guard band != drawnCurrentLine else { return }
+        if let old = drawnCurrentLine { setNeedsDisplay(old) }
+        if let band { setNeedsDisplay(band) }
+        drawnCurrentLine = band
+    }
+
+    override public func setSelectedRanges(_ ranges: [NSValue], affinity: NSSelectionAffinity, stillSelecting: Bool) {
+        super.setSelectedRanges(ranges, affinity: affinity, stillSelecting: stillSelecting)
+        refreshCurrentLine()
+    }
+
+    override public func didChangeText() {
+        super.didChangeText()
+        refreshCurrentLine()
+    }
+
+    override public func drawBackground(in rect: NSRect) {
+        super.drawBackground(in: rect)
+        guard let band = currentLineRect?.intersection(rect), !band.isEmpty else { return }
+        NSColor.currentLine.setFill()
+        band.fill(using: .sourceOver)
+    }
+
     public var wrapsLines: Bool = true {
         didSet { applyWrapping() }
     }
@@ -205,6 +260,15 @@ extension NSTextView {
 
 /// Draws whitespace marks over the glyphs it draws, so only what's on
 /// screen is looked at, however long the document.
+extension NSColor {
+    /// Soft yellow behind the caret's line, fainter in dark mode.
+    static let currentLine = NSColor(name: "currentLine") { appearance in
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            ? NSColor.systemYellow.withAlphaComponent(0.10)
+            : NSColor.systemYellow.withAlphaComponent(0.16)
+    }
+}
+
 final class InvisiblesLayoutManager: NSLayoutManager {
     var showsInvisibles = false
 
