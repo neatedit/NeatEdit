@@ -36,6 +36,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             alert.addButton(withTitle: "OK")
             return alert
         }
+        // Opened straight from Downloads or a disk image: macOS runs it from a
+        // random read-only copy, and a link to that breaks later.
+        guard !script.path.contains("/AppTranslocation/") else {
+            alert.informativeText = "Move NeatEdit to the Applications folder and open it from there first."
+            alert.addButton(withTitle: "OK")
+            return alert
+        }
         alert.informativeText = "Run this in Terminal once to open files with “neatedit file.txt” "
             + "(or “some-command | neatedit -”). Move NeatEdit to its final place first."
         let field = NSTextField(wrappingLabelWithString: CommandLineTool.installCommand(script: script.path))

@@ -20,6 +20,13 @@ final class CommandLineToolMenuTests: XCTestCase {
         XCTAssertEqual(alert.buttons.map(\.title), ["Copy Command", "Done"])
     }
 
+    func testFromATranslocatedCopyItAsksToMoveTheAppFirst() {
+        let script = URL(fileURLWithPath: "/private/var/folders/x/AppTranslocation/1234/d/NeatEdit.app/Contents/Resources/neatedit")
+        let alert = AppDelegate.commandLineToolAlert(script: script)
+        XCTAssertNil(alert.accessoryView)
+        XCTAssertTrue(alert.informativeText.contains("Applications folder"))
+    }
+
     func testWithoutABundledScriptTheAlertSaysSo() {
         let alert = AppDelegate.commandLineToolAlert(script: nil)
         XCTAssertNil(alert.accessoryView)
