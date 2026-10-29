@@ -12,5 +12,6 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/NeatEdit"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 [ -f Resources/AppIcon.icns ] && cp Resources/AppIcon.icns "$APP/Contents/Resources/"
+cp scripts/neatedit "$APP/Contents/Resources/neatedit"
 codesign --force --sign - "$APP" >/dev/null
 echo "Built $APP"

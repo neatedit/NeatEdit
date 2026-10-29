@@ -20,7 +20,7 @@ done
 
 for arg in "$@"; do
     if [ "$arg" = "-" ]; then
-        tmp="$(mktemp -t neatedit).txt"
+        tmp="$(mktemp -d -t neatedit)/stdin.txt"
         cat > "$tmp"
         arg=$tmp
     elif [ ! -e "$arg" ]; then
