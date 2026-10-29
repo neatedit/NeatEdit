@@ -461,7 +461,9 @@ public final class TextDocument: NSDocument {
     /// hasn't counted yet, a revert), the clean/edited decision is stale.
     /// Either way, read again instead of trusting it.
     func diskReadFinished(_ read: DiskRead?, stamp: Int, text: TextStamp? = nil) {
-        guard stamp == diskReadStamp, text == nil || text == textStamp else { return scheduleDiskCheck() }
+        // An edited tab diffs against its current text anyway; only the clean
+        // path needs the text unchanged (steady typing mustn't hold the banner back).
+        guard stamp == diskReadStamp, isDocumentEdited || text == nil || text == textStamp else { return scheduleDiskCheck() }
         diskDidChange(read)
     }
 
