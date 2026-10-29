@@ -160,4 +160,16 @@ final class CurrentLineTests: XCTestCase {
         XCTAssertGreaterThan(after.height, before.height)
         XCTAssertGreaterThan(after.minY, before.minY)
     }
+
+    func testAnEditStraightToTheStorageMovesTheBand() throws {
+        let (controller, window) = editor("one\ntwo\nthree\n")
+        defer { window.close() }
+        let view = controller.textView
+        view.setSelectedRange(NSRange(location: 9, length: 0))
+        let before = try XCTUnwrap(view.currentLineRect)
+        // Same length, no text view involved: "one\ntwo\n" becomes "o\ne\ntwo\n" minus a char.
+        view.textStorage?.replaceCharacters(in: NSRange(location: 1, length: 1), with: "\n")
+        let after = try XCTUnwrap(view.currentLineRect)
+        XCTAssertGreaterThan(after.minY, before.minY, "the caret's line is now one row lower")
+    }
 }

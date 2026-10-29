@@ -3,7 +3,7 @@ import EditorCore
 
 /// A plain-text NSTextView: pastes without formatting exactly at the caret
 /// and never "helps" by rewriting what you type.
-public final class PlainTextView: NSTextView {
+public final class PlainTextView: NSTextView, NSLayoutManagerDelegate {
     /// Builds a TextKit 1 stack, which handles multi-hundred-MB documents with
     /// non-contiguous layout far better than TextKit 2.
     public static func make(storage: NSTextStorage = NSTextStorage(), font: NSFont = Preferences.font) -> PlainTextView {
@@ -16,6 +16,7 @@ public final class PlainTextView: NSTextView {
         layoutManager.addTextContainer(container)
 
         let view = PlainTextView(frame: .zero, textContainer: container)
+        layoutManager.delegate = view
         view.configure(font: font)
         return view
     }
@@ -182,6 +183,8 @@ public final class PlainTextView: NSTextView {
         if let bandCache, bandCache.key == key { return bandCache.rect }
         // Never lay out while the storage is mid-edit; ask again afterwards.
         guard storage.editedMask.isEmpty else { return nil }
+        measuringBand = true
+        defer { measuringBand = false }
         let rect = Self.lineBand(at: caret.location, in: storage.string as NSString, layoutManager: layoutManager)
             .map { NSRect(x: 0, y: $0.minY + textContainerOrigin.y, width: bounds.width, height: $0.height) }
         bandCache = (key, rect)
@@ -199,6 +202,18 @@ public final class PlainTextView: NSTextView {
     /// The band as last painted, so a move repaints where it really was.
     private var paintedBand: NSRect?
     private var bandRefreshPending = false
+    /// Layout we force while measuring the band isn't news about it.
+    private var measuringBand = false
+
+    /// Any edit to the storage, including ones that bypass the text view
+    /// (a reload of the same length): the band may have moved.
+    func textStorageDidEdit() { invalidateCurrentLine() }
+
+    /// Non-contiguous layout catching up can move lines below what it laid out.
+    public func layoutManager(_ layoutManager: NSLayoutManager, didCompleteLayoutFor textContainer: NSTextContainer?, atEnd layoutFinishedFlag: Bool) {
+        guard !measuringBand, highlightsCurrentLine else { return }
+        invalidateCurrentLine()
+    }
 
     /// A very long line (minified JSON) is banded only this many rows around
     /// the caret, so a caret move never lays out the whole line.
@@ -331,6 +346,15 @@ extension NSColor {
 
 final class InvisiblesLayoutManager: NSLayoutManager {
     var showsInvisibles = false
+
+    override func processEditing(
+        for textStorage: NSTextStorage, edited editMask: NSTextStorageEditActions, range newCharRange: NSRange,
+        changeInLength delta: Int, invalidatedRange invalidatedCharRange: NSRange
+    ) {
+        super.processEditing(for: textStorage, edited: editMask, range: newCharRange,
+                             changeInLength: delta, invalidatedRange: invalidatedCharRange)
+        (firstTextView as? PlainTextView)?.textStorageDidEdit()
+    }
 
     override func drawGlyphs(forGlyphRange glyphsToShow: NSRange, at origin: NSPoint) {
         super.drawGlyphs(forGlyphRange: glyphsToShow, at: origin)
