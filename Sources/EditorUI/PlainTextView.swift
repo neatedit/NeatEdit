@@ -108,6 +108,20 @@ public final class PlainTextView: NSTextView, NSLayoutManagerDelegate {
     // MARK: Line commands
 
     @objc func duplicateLine(_ sender: Any?) { apply(LineEdit.duplicate, "Duplicate") }
+    /// Clicks are hit-tested against the layout as it stands; with
+    /// non-contiguous layout the area on screen may not be finished yet (seen
+    /// after typing: a click on the empty last line landed on the row above).
+    /// Lay out what's visible first. It's only the visible rect, so it's cheap.
+    override public func mouseDown(with event: NSEvent) {
+        if let layoutManager, let textContainer {
+            layoutManager.ensureLayout(forBoundingRect: visibleRect, in: textContainer)
+            if let storage = textStorage, storage.length > 0 {
+                layoutManager.ensureLayout(forCharacterRange: NSRange(location: storage.length - 1, length: 1))
+            }
+        }
+        super.mouseDown(with: event)
+    }
+
     override func moveLineUp(_ sender: Any?) { apply(LineEdit.moveUp, "Move Line Up") }
     override func moveLineDown(_ sender: Any?) { apply(LineEdit.moveDown, "Move Line Down") }
 
