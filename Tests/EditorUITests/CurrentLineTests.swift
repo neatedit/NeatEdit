@@ -167,7 +167,7 @@ final class CurrentLineTests: XCTestCase {
         let view = controller.textView
         view.setSelectedRange(NSRange(location: 9, length: 0))
         let before = try XCTUnwrap(view.currentLineRect)
-        // Same length, no text view involved: "one\ntwo\n" becomes "o\ne\ntwo\n" minus a char.
+        // Same length, straight to the storage: "one" becomes "o", "e" on two lines.
         view.textStorage?.replaceCharacters(in: NSRange(location: 1, length: 1), with: "\n")
         let after = try XCTUnwrap(view.currentLineRect)
         XCTAssertGreaterThan(after.minY, before.minY, "the caret's line is now one row lower")
