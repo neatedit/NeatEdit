@@ -13,6 +13,7 @@ public enum Preferences {
     private static let wrapKey = "wrapLines"
     private static let lineNumbersKey = "showLineNumbers"
     private static let unwrapPasteKey = "unwrapPastedText"
+    private static let invisiblesKey = "showInvisibles"
     static let defaultFontSize: CGFloat = 13
 
     public static func registerDefaults() {
@@ -21,6 +22,7 @@ public enum Preferences {
             wrapKey: false,
             lineNumbersKey: false,
             unwrapPasteKey: true,
+            invisiblesKey: false,
         ])
         // Reopen every tab (including unsaved scratch tabs) after quitting,
         // regardless of the system "close windows when quitting" setting.
@@ -46,6 +48,12 @@ public enum Preferences {
     public static var showsLineNumbers: Bool {
         get { defaults.bool(forKey: lineNumbersKey) }
         set { set(newValue, forKey: lineNumbersKey) }
+    }
+
+    /// Marks for spaces, tabs and line ends.
+    public static var showsInvisibles: Bool {
+        get { defaults.bool(forKey: invisiblesKey) }
+        set { set(newValue, forKey: invisiblesKey) }
     }
 
     /// Undo terminal hard wrapping in pasted text (as its own undo step).

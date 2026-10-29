@@ -7,7 +7,7 @@ public final class PlainTextView: NSTextView {
     /// Builds a TextKit 1 stack, which handles multi-hundred-MB documents with
     /// non-contiguous layout far better than TextKit 2.
     public static func make(storage: NSTextStorage = NSTextStorage(), font: NSFont = Preferences.font) -> PlainTextView {
-        let layoutManager = NSLayoutManager()
+        let layoutManager = InvisiblesLayoutManager()
         layoutManager.allowsNonContiguousLayout = true
         storage.addLayoutManager(layoutManager)
 
@@ -104,6 +104,22 @@ public final class PlainTextView: NSTextView {
         return true
     }
 
+    // MARK: Line commands
+
+    @objc func duplicateLine(_ sender: Any?) { apply(LineEdit.duplicate, "Duplicate") }
+    override func moveLineUp(_ sender: Any?) { apply(LineEdit.moveUp, "Move Line Up") }
+    override func moveLineDown(_ sender: Any?) { apply(LineEdit.moveDown, "Move Line Down") }
+
+    /// One undo step; a column selection counts as the lines it spans.
+    private func apply(_ make: (NSString, NSRange) -> LineEdit?, _ actionName: String) {
+        let ranges = selectedRanges.map(\.rangeValue)
+        let selection = ranges.dropFirst().reduce(ranges.first ?? selectedRange()) { NSUnionRange($0, $1) }
+        guard isEditable, let edit = make(string as NSString, selection) else { return NSSound.beep() }
+        guard replace(edit.range, with: edit.replacement, asUndoStep: actionName) else { return }
+        setSelectedRange(edit.selection)
+        scrollRangeToVisible(edit.selection)
+    }
+
     override public func performFindPanelAction(_ sender: Any?) {
         guard let tag = (sender as? NSValidatedUserInterfaceItem)?.tag,
               let action = NSTextFinder.Action(rawValue: tag) else { return }
@@ -112,6 +128,10 @@ public final class PlainTextView: NSTextView {
 
     override public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(performFindPanelAction(_:)) { return findController != nil }
+        if [#selector(duplicateLine(_:)), #selector(moveLineUp(_:)), #selector(moveLineDown(_:))].contains(menuItem.action) {
+            // With a sheet up the keys are meant for it, not the document behind.
+            return isEditable && window?.attachedSheet == nil
+        }
         return super.validateMenuItem(menuItem)
     }
 
@@ -132,6 +152,16 @@ public final class PlainTextView: NSTextView {
         typingAttributes = [.font: font, .foregroundColor: NSColor.textColor]
         if let storage = textStorage, storage.length > 0 {
             storage.addAttributes(typingAttributes, range: NSRange(location: 0, length: storage.length))
+        }
+    }
+
+    /// Marks for spaces, tabs and line ends, drawn by the layout manager.
+    var showsInvisibles: Bool {
+        get { (layoutManager as? InvisiblesLayoutManager)?.showsInvisibles ?? false }
+        set {
+            guard let manager = layoutManager as? InvisiblesLayoutManager, manager.showsInvisibles != newValue else { return }
+            manager.showsInvisibles = newValue
+            needsDisplay = true
         }
     }
 
@@ -156,5 +186,66 @@ public final class PlainTextView: NSTextView {
             maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         }
         needsDisplay = true
+    }
+}
+
+/// ⌥↑ / ⌥↓ are menu shortcuts for moving lines. Every other text view
+/// (find fields, sheets) keeps what they do there: paragraph start / end.
+extension NSTextView {
+    @objc func moveLineUp(_ sender: Any?) {
+        moveBackward(sender)
+        moveToBeginningOfParagraph(sender)
+    }
+
+    @objc func moveLineDown(_ sender: Any?) {
+        moveForward(sender)
+        moveToEndOfParagraph(sender)
+    }
+}
+
+/// Draws whitespace marks over the glyphs it draws, so only what's on
+/// screen is looked at, however long the document.
+final class InvisiblesLayoutManager: NSLayoutManager {
+    var showsInvisibles = false
+
+    override func drawGlyphs(forGlyphRange glyphsToShow: NSRange, at origin: NSPoint) {
+        super.drawGlyphs(forGlyphRange: glyphsToShow, at: origin)
+        guard showsInvisibles, let storage = textStorage else { return }
+        // A long unwrapped line comes in whole: look only at what's in the clip.
+        var glyphs = glyphsToShow
+        if let clip = NSGraphicsContext.current?.cgContext.boundingBoxOfClipPath, let container = textContainers.first {
+            glyphs = NSIntersectionRange(glyphs, glyphRange(forBoundingRect: clip.offsetBy(dx: -origin.x, dy: -origin.y), in: container))
+        }
+        guard glyphs.length > 0 else { return }
+        let text = storage.string as NSString
+        let characters = characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
+        let color = NSColor.tertiaryLabelColor
+        for offset in characters.location..<NSMaxRange(characters) {
+            let character = text.character(at: offset)
+            let symbol: String
+            if let mark = Invisibles.symbol(for: character) {
+                symbol = mark
+            } else if Self.isLineEnd(character, followedBy: offset + 1 < text.length ? text.character(at: offset + 1) : nil) {
+                symbol = Invisibles.lineEnd
+            } else {
+                continue
+            }
+            let glyph = glyphIndexForCharacter(at: offset)
+            let line = lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+            let location = location(forGlyphAt: glyph)
+            guard let font = storage.attribute(.font, at: offset, effectiveRange: nil) as? NSFont else { continue }
+            // From the baseline, so a line made taller by an emoji keeps its marks in place.
+            let point = NSPoint(x: origin.x + line.minX + location.x, y: origin.y + line.minY + location.y - font.ascender)
+            (symbol as NSString).draw(at: point, withAttributes: [.font: font, .foregroundColor: color])
+        }
+    }
+
+    /// One mark per line end: CRLF gets it on the LF.
+    private static func isLineEnd(_ character: unichar, followedBy next: unichar?) -> Bool {
+        switch character {
+        case 0x0A, 0x85, 0x2028, 0x2029: true
+        case 0x0D: next != 0x0A
+        default: false
+        }
     }
 }

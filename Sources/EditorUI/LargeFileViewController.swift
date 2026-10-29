@@ -72,7 +72,10 @@ final class LargeFileViewController: NSViewController, DocumentContent, NSMenuIt
 
     @objc private func preferencesChanged() {
         textView.setFont(Preferences.font)
+        textView.showsInvisibles = Preferences.showsInvisibles
     }
+
+    @objc func toggleInvisibles(_ sender: Any?) { Preferences.showsInvisibles.toggle() }
 
     @objc func makeTextBigger(_ sender: Any?) { Preferences.fontSize += 1 }
     @objc func makeTextSmaller(_ sender: Any?) { Preferences.fontSize -= 1 }
@@ -112,8 +115,11 @@ final class LargeFileViewController: NSViewController, DocumentContent, NSMenuIt
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(toggleInvisibles(_:)) {
+            menuItem.state = Preferences.showsInvisibles ? .on : .off
+        }
         // Lines never wrap or get numbered in the viewer.
-        menuItem.action != #selector(EditorViewController.toggleWrapLines(_:))
+        return menuItem.action != #selector(EditorViewController.toggleWrapLines(_:))
             && menuItem.action != #selector(EditorViewController.toggleLineNumbers(_:))
     }
 }

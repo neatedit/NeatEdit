@@ -52,6 +52,7 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
     override func viewDidAppear() {
         super.viewDidAppear()
         textView.wrapsLines = Preferences.wrapsLines
+        textView.showsInvisibles = Preferences.showsInvisibles
         applyLineNumbers()
         view.window?.makeFirstResponder(textView)
     }
@@ -232,6 +233,7 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
     @objc private func preferencesChanged() {
         textView.setFont(Preferences.font)
         textView.wrapsLines = Preferences.wrapsLines
+        textView.showsInvisibles = Preferences.showsInvisibles
         applyLineNumbers()
     }
 
@@ -298,6 +300,7 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
         return NSRange(location: start, length: end - start)
     }
     @objc func toggleLineNumbers(_ sender: Any?) { Preferences.showsLineNumbers.toggle() }
+    @objc func toggleInvisibles(_ sender: Any?) { Preferences.showsInvisibles.toggle() }
     @objc func showFontPanel(_ sender: Any?) { Preferences.showFontPanel() }
     @objc func changeFont(_ sender: Any?) {
         guard let manager = sender as? NSFontManager else { return }
@@ -378,6 +381,9 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
         }
         if menuItem.action == #selector(toggleLineNumbers(_:)) {
             menuItem.state = Preferences.showsLineNumbers ? .on : .off
+        }
+        if menuItem.action == #selector(toggleInvisibles(_:)) {
+            menuItem.state = Preferences.showsInvisibles ? .on : .off
         }
         if menuItem.action == #selector(toggleUnwrapPastedText(_:)) {
             menuItem.state = Preferences.unwrapsPastedText ? .on : .off
