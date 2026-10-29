@@ -157,8 +157,8 @@ public final class TextDocument: NSDocument {
 
     private func unresolvedChangeError() -> Error {
         NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileWriteUnknown.rawValue, userInfo: [
-            NSLocalizedDescriptionKey: "“\(displayName ?? "This document")” changed on disk while it had unsaved changes.",
-            NSLocalizedRecoverySuggestionErrorKey: "Review the changes or dismiss them first, so neither version is lost.",
+            NSLocalizedDescriptionKey: L10n.tr("“%@” changed on disk while it had unsaved changes.", displayName ?? L10n.tr("This document")),
+            NSLocalizedRecoverySuggestionErrorKey: L10n.tr("Review the changes or dismiss them first, so neither version is lost."),
         ])
     }
 
@@ -204,7 +204,7 @@ public final class TextDocument: NSDocument {
 
     /// The folder under the name in the title bar, home shortened to "~".
     static func subtitle(for url: URL?, home: String, viewer: Bool) -> String {
-        let note = viewer ? "Read-only (large file)" : ""
+        let note = viewer ? L10n.tr("Read-only (large file)") : ""
         guard let url else { return note }
         var folder = url.deletingLastPathComponent().path
         if folder == home {
@@ -302,17 +302,17 @@ public final class TextDocument: NSDocument {
                 try self?.reopen(with: encoding)
             } catch {
                 let alert = NSAlert()
-                alert.messageText = "The file isn't valid \(TextFile.name(of: encoding))."
-                alert.informativeText = "The text was left as it is."
+                alert.messageText = L10n.tr("The file isn't valid %@.", TextFile.name(of: encoding))
+                alert.informativeText = L10n.tr("The text was left as it is.")
                 if let window { alert.beginSheetModal(for: window) } else { alert.runModal() }
             }
         }
         guard isDocumentEdited, let window else { return reopen() }
         let alert = NSAlert()
-        alert.messageText = "Reopen as \(TextFile.name(of: encoding))?"
-        alert.informativeText = "Unsaved changes in this tab will be lost."
-        alert.addButton(withTitle: "Reopen")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = L10n.tr("Reopen as %@?", TextFile.name(of: encoding))
+        alert.informativeText = L10n.tr("Unsaved changes in this tab will be lost.")
+        alert.addButton(withTitle: L10n.tr("Reopen"))
+        alert.addButton(withTitle: L10n.tr("Cancel"))
         alert.beginSheetModal(for: window) { response in
             if response == .alertFirstButtonReturn { reopen() }
         }
@@ -678,7 +678,7 @@ public final class TextDocument: NSDocument {
         let merged = merge.apply(decisions)
         let text = model.lineEnding == .lf ? merged : model.lineEnding.apply(to: merged)
         for controller in windowControllers {
-            (controller.contentViewController as? DocumentContent)?.replaceText(with: text, actionName: "Apply Disk Changes")
+            (controller.contentViewController as? DocumentContent)?.replaceText(with: text, actionName: L10n.tr("Apply Disk Changes"))
         }
         adoptDiskAsBase(disk)
     }
@@ -697,8 +697,8 @@ public final class TextDocument: NSDocument {
         guard case .changed(_, let disk) = externalState, let model else { return }
         guard !Self.sameFile(url, fileURL) else {
             throw NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileWriteNoPermission.rawValue, userInfo: [
-                NSLocalizedDescriptionKey: "Choose another name for your version.",
-                NSLocalizedRecoverySuggestionErrorKey: "This is the file that changed on disk; saving here would overwrite those changes.",
+                NSLocalizedDescriptionKey: L10n.tr("Choose another name for your version."),
+                NSLocalizedRecoverySuggestionErrorKey: L10n.tr("This is the file that changed on disk; saving here would overwrite those changes."),
             ])
         }
         try model.encodedData().write(to: url, options: .atomic)
@@ -719,7 +719,7 @@ public final class TextDocument: NSDocument {
         super.updateChangeCount(change)
     }
 
-    static let reloadActionName = "Reload from Disk"
+    static var reloadActionName: String { L10n.tr("Reload from Disk") }
     private var reloadsAwaitingCount = 0
 
     /// Shows the disk version in the tab as one undo step and leaves it clean.
@@ -743,7 +743,7 @@ public final class TextDocument: NSDocument {
 
     /// "notes.txt" → "notes (my version).txt"
     static func myVersionName(for url: URL) -> String {
-        let name = url.deletingPathExtension().lastPathComponent + " (my version)"
+        let name = url.deletingPathExtension().lastPathComponent + " " + L10n.tr("(my version)")
         return url.pathExtension.isEmpty ? name : name + "." + url.pathExtension
     }
 

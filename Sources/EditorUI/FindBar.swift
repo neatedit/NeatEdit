@@ -10,15 +10,15 @@ final class FindBar: NSView {
     let replaceField = PlaceholderField.make()
     let statusLabel = NSTextField(labelWithString: "")
     let optionsButton = NSPopUpButton(frame: .zero, pullsDown: true)
-    let caseItem = NSMenuItem(title: "Match Case", action: nil, keyEquivalent: "")
-    let regexItem = NSMenuItem(title: "Regular Expression", action: nil, keyEquivalent: "")
-    let selectionItem = NSMenuItem(title: "In Selection", action: nil, keyEquivalent: "")
-    private let findStar = FindBar.button(symbol: "star.fill", tip: "Insert a placeholder: matches any text on the line")
-    private let replaceStar = FindBar.button(symbol: "star", tip: "Insert the text a Find placeholder matched")
+    let caseItem = NSMenuItem(title: L10n.tr("Match Case"), action: nil, keyEquivalent: "")
+    let regexItem = NSMenuItem(title: L10n.tr("Regular Expression"), action: nil, keyEquivalent: "")
+    let selectionItem = NSMenuItem(title: L10n.tr("In Selection"), action: nil, keyEquivalent: "")
+    private let findStar = FindBar.button(symbol: "star.fill", tip: L10n.tr("Insert a placeholder: matches any text on the line"))
+    private let replaceStar = FindBar.button(symbol: "star", tip: L10n.tr("Insert the text a Find placeholder matched"))
     private let navigation = NSSegmentedControl()
-    private let doneButton = NSButton(title: "Done", target: nil, action: nil)
-    private let replaceButton = NSButton(title: "Replace", target: nil, action: nil)
-    private let replaceAllButton = NSButton(title: "All", target: nil, action: nil)
+    private let doneButton = NSButton(title: L10n.tr("Done"), target: nil, action: nil)
+    private let replaceButton = NSButton(title: L10n.tr("Replace"), target: nil, action: nil)
+    private let replaceAllButton = NSButton(title: L10n.tr("All"), target: nil, action: nil)
 
     weak var controller: FindController? {
         didSet { wire() }
@@ -38,27 +38,27 @@ final class FindBar: NSView {
 
     init() {
         super.init(frame: NSRect(x: 0, y: 0, width: 600, height: 62))
-        findField.placeholder = "Find"
-        replaceField.placeholder = "Replace"
+        findField.placeholder = L10n.tr("Find")
+        replaceField.placeholder = L10n.tr("Replace")
         findField.nextKeyView = replaceField
         replaceField.nextKeyView = findField
 
         optionsButton.addItem(withTitle: "")
-        optionsButton.item(at: 0)?.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Options")
+        optionsButton.item(at: 0)?.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: L10n.tr("Options"))
         optionsButton.menu?.addItem(caseItem)
         optionsButton.menu?.addItem(regexItem)
         optionsButton.menu?.addItem(selectionItem)
         (optionsButton.cell as? NSPopUpButtonCell)?.arrowPosition = .arrowAtBottom
         optionsButton.bezelStyle = .flexiblePush
         optionsButton.isBordered = false
-        optionsButton.toolTip = "Search options"
+        optionsButton.toolTip = L10n.tr("Search options")
 
         navigation.segmentCount = 2
         navigation.trackingMode = .momentary
-        navigation.setImage(NSImage(systemSymbolName: "chevron.left", accessibilityDescription: "Previous"), forSegment: 0)
-        navigation.setImage(NSImage(systemSymbolName: "chevron.right", accessibilityDescription: "Next"), forSegment: 1)
-        navigation.setToolTip("Previous (⇧⌘G)", forSegment: 0)
-        navigation.setToolTip("Next (⌘G)", forSegment: 1)
+        navigation.setImage(NSImage(systemSymbolName: "chevron.left", accessibilityDescription: L10n.tr("Previous")), forSegment: 0)
+        navigation.setImage(NSImage(systemSymbolName: "chevron.right", accessibilityDescription: L10n.tr("Next")), forSegment: 1)
+        navigation.setToolTip(L10n.tr("Previous (⇧⌘G)"), forSegment: 0)
+        navigation.setToolTip(L10n.tr("Next (⌘G)"), forSegment: 1)
 
         statusLabel.font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
         statusLabel.textColor = .secondaryLabelColor
@@ -167,7 +167,7 @@ final class FindBar: NSView {
         let menu = NSMenu()
         let numbers = Array(Set(findField.placeholderNumbers)).sorted()
         if numbers.isEmpty {
-            let hint = NSMenuItem(title: "Add placeholders to Find first", action: nil, keyEquivalent: "")
+            let hint = NSMenuItem(title: L10n.tr("Add placeholders to Find first"), action: nil, keyEquivalent: "")
             hint.isEnabled = false
             menu.addItem(hint)
         }
@@ -375,7 +375,7 @@ final class FindController: NSObject {
         do {
             return try FindQuery(find: bar.findField.tokens, replace: bar.replaceField.tokens, options: options)
         } catch FindError.invalidPattern {
-            if reportingErrors { bar.showStatus("Invalid pattern", isError: true) }
+            if reportingErrors { bar.showStatus(L10n.tr("Invalid pattern"), isError: true) }
         } catch {
             if reportingErrors { bar.showStatus("") }
         }
@@ -391,7 +391,7 @@ final class FindController: NSObject {
             ? query.next(in: text, after: selection, scope: scope)
             : query.previous(in: text, before: selection, scope: scope)
         guard let match else {
-            bar.showStatus("Not found")
+            bar.showStatus(L10n.tr("Not found"))
             return NSSound.beep()
         }
         select(match.range, query: query, text: text, scope: scope)
@@ -405,13 +405,13 @@ final class FindController: NSObject {
 
     private func reportPosition(of range: NSRange?, query: FindQuery, text: NSString, scope: NSRange) {
         // Counting (and searching as you type) would scan the whole document.
-        guard !isLarge else { return bar.showStatus(range == nil ? "Return to find" : "Found") }
+        guard !isLarge else { return bar.showStatus(range == nil ? L10n.tr("Return to find") : L10n.tr("Found")) }
         let total = query.count(in: text, scope: scope)
         guard let range, total > 0 else {
-            return bar.showStatus(total == 0 ? "Not found" : total == 1 ? "1 match" : "\(total) matches")
+            return bar.showStatus(total == 0 ? L10n.tr("Not found") : total == 1 ? L10n.tr("1 match") : L10n.tr("%ld matches", total))
         }
         let before = query.count(in: text, scope: NSRange(location: scope.location, length: max(0, range.location - scope.location)))
-        bar.showStatus("\(before + 1) of \(total)")
+        bar.showStatus(L10n.tr("%ld of %ld", before + 1, total))
     }
 
     // MARK: Replacing
@@ -425,7 +425,7 @@ final class FindController: NSObject {
             return find(forward: true)
         }
         let replacement = query.replacement(for: match, in: text)
-        guard textView.replaceFound(selection, with: replacement, actionName: "Replace") else { return NSSound.beep() }
+        guard textView.replaceFound(selection, with: replacement, actionName: L10n.tr("Replace")) else { return NSSound.beep() }
         adjustScope(by: replacement.utf16.count - selection.length)
 
         let after = NSRange(location: selection.location + replacement.utf16.count, length: 0)
@@ -435,7 +435,7 @@ final class FindController: NSObject {
             select(next.range, query: query, text: newText, scope: newScope)
         } else {
             textView.selectFound(after, indicate: false)
-            bar.showStatus("Not found")
+            bar.showStatus(L10n.tr("Not found"))
         }
     }
 
@@ -445,7 +445,7 @@ final class FindController: NSObject {
         let scope = scope(in: text)
         let edits = query.replaceAll(in: text, scope: scope)
         guard let first = edits.first, let last = edits.last else {
-            bar.showStatus("Not found")
+            bar.showStatus(L10n.tr("Not found"))
             return NSSound.beep()
         }
         // One contiguous change: a single undo step, and fast with thousands of matches.
@@ -457,10 +457,10 @@ final class FindController: NSObject {
             result += edit.replacement
             cursor = edit.range.upperBound
         }
-        guard textView.replaceFound(covered, with: result, actionName: "Replace All") else { return NSSound.beep() }
+        guard textView.replaceFound(covered, with: result, actionName: L10n.tr("Replace All")) else { return NSSound.beep() }
         adjustScope(by: result.utf16.count - covered.length)
         textView.selectFound(selectionScope ?? NSRange(location: covered.location, length: 0), indicate: false)
-        bar.showStatus("Replaced \(edits.count)")
+        bar.showStatus(L10n.tr("Replaced %ld", edits.count))
     }
 
     private func adjustScope(by delta: Int) {

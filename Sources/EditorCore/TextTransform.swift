@@ -16,7 +16,10 @@ public enum TextTransform: CaseIterable, Sendable {
 
     public static let defaultTabWidth = 4
 
-    public var title: String {
+    public var title: String { L10n.tr(englishTitle) }
+
+    /// The key `title` is looked up by.
+    var englishTitle: String {
         switch self {
         case .uppercase: "UPPERCASE"
         case .lowercase: "lowercase"
@@ -89,7 +92,7 @@ public enum TextTransform: CaseIterable, Sendable {
             }
         case .urlDecode:
             return try Self.keepingSurroundingWhitespace(text) {
-                guard let decoded = $0.removingPercentEncoding else { throw Failure(message: "Not valid URL encoding") }
+                guard let decoded = $0.removingPercentEncoding else { throw Failure(message: L10n.tr("Not valid URL encoding")) }
                 return decoded
             }
         }
@@ -162,8 +165,8 @@ public enum TextTransform: CaseIterable, Sendable {
             .replacingOccurrences(of: "-", with: "+")
             .replacingOccurrences(of: "_", with: "/")
         if compact.count % 4 != 0 { compact += String(repeating: "=", count: 4 - compact.count % 4) }
-        guard let data = Data(base64Encoded: compact) else { throw Failure(message: "Not valid Base64") }
-        guard let decoded = String(data: data, encoding: .utf8) else { throw Failure(message: "Decoded Base64 isn't UTF-8 text") }
+        guard let data = Data(base64Encoded: compact) else { throw Failure(message: L10n.tr("Not valid Base64")) }
+        guard let decoded = String(data: data, encoding: .utf8) else { throw Failure(message: L10n.tr("Decoded Base64 isn't UTF-8 text")) }
         return decoded
     }
 }
@@ -176,7 +179,7 @@ enum JSONLayout {
             _ = try JSONSerialization.jsonObject(with: Data(text.utf8), options: .fragmentsAllowed)
         } catch {
             let detail = (error as NSError).userInfo[NSDebugDescriptionErrorKey] as? String
-            throw TextTransform.Failure(message: "Not valid JSON" + (detail.map { ": \($0)" } ?? ""))
+            throw TextTransform.Failure(message: L10n.tr("Not valid JSON") + (detail.map { ": \($0)" } ?? ""))
         }
 
         let scalars = Array(text.unicodeScalars)

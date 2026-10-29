@@ -20,6 +20,8 @@ targets:
         buildPhase: resources
       - path: scripts/neatedit
         buildPhase: resources
+      - path: Resources/Localization
+        buildPhase: resources
     dependencies:
       - package: NeatEditKit
         product: EditorUI

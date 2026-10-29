@@ -75,8 +75,8 @@ public final class PlainTextView: NSTextView, NSLayoutManagerDelegate {
               let unwrapped = TextUnwrap.unwrapIfWrapped(raw),
               (undoManager?.groupingLevel ?? 0) == 0 else { return false }
         let start = selectedRange().location
-        guard replace(selectedRange(), with: raw, asUndoStep: "Paste") else { return true }
-        if replace(NSRange(location: start, length: (raw as NSString).length), with: unwrapped, asUndoStep: "Unwrap Pasted Text") {
+        guard replace(selectedRange(), with: raw, asUndoStep: L10n.tr("Paste")) else { return true }
+        if replace(NSRange(location: start, length: (raw as NSString).length), with: unwrapped, asUndoStep: L10n.tr("Unwrap Pasted Text")) {
             onPasteUnwrapped?()
         }
         return true
@@ -107,7 +107,7 @@ public final class PlainTextView: NSTextView, NSLayoutManagerDelegate {
 
     // MARK: Line commands
 
-    @objc func duplicateLine(_ sender: Any?) { apply(LineEdit.duplicate, "Duplicate") }
+    @objc func duplicateLine(_ sender: Any?) { apply(LineEdit.duplicate, L10n.tr("Duplicate")) }
     /// Clicks are hit-tested against the layout as it stands; with
     /// non-contiguous layout the area on screen may not be finished yet (seen
     /// after typing: a click on the empty last line landed on the row above).
@@ -122,8 +122,8 @@ public final class PlainTextView: NSTextView, NSLayoutManagerDelegate {
         super.mouseDown(with: event)
     }
 
-    override func moveLineUp(_ sender: Any?) { apply(LineEdit.moveUp, "Move Line Up") }
-    override func moveLineDown(_ sender: Any?) { apply(LineEdit.moveDown, "Move Line Down") }
+    override func moveLineUp(_ sender: Any?) { apply(LineEdit.moveUp, L10n.tr("Move Line Up")) }
+    override func moveLineDown(_ sender: Any?) { apply(LineEdit.moveDown, L10n.tr("Move Line Down")) }
 
     /// One undo step; a column selection counts as the lines it spans.
     private func apply(_ make: (NSString, NSRange) -> LineEdit?, _ actionName: String) {
