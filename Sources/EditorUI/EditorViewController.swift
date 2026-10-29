@@ -256,7 +256,6 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
     @objc func toggleWrapLines(_ sender: Any?) { Preferences.wrapsLines.toggle() }
     @objc func toggleUnwrapPastedText(_ sender: Any?) { Preferences.unwrapsPastedText.toggle() }
 
-    /// Joins hard-wrapped lines in the selection, as one undo step.
     /// Text menu items: the tag is the transform's index in `allCases`.
     @objc func transformText(_ sender: Any?) {
         guard let tag = (sender as? NSValidatedUserInterfaceItem)?.tag,
@@ -295,6 +294,7 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
         let start = text.lineRange(for: NSRange(location: range.location, length: 0)).location
         var end = NSMaxRange(text.lineRange(for: NSRange(location: last, length: 0)))
         if end > start, text.character(at: end - 1) == 0x0A { end -= 1 }
+        if end > start, text.character(at: end - 1) == 0x0D { end -= 1 }
         return NSRange(location: start, length: end - start)
     }
     @objc func toggleLineNumbers(_ sender: Any?) { Preferences.showsLineNumbers.toggle() }

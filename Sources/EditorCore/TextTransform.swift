@@ -54,9 +54,13 @@ public enum TextTransform: CaseIterable, Sendable {
         switch self {
         case .uppercase: return text.uppercased()
         case .lowercase: return text.lowercased()
-        case .titleCase: return text.capitalized
+        case .titleCase:
+            // Lowercasing the rest would wreck "JSON" and "iPhone"; only all-caps text is calmed down first.
+            return Self.capitalizingWords(text == text.uppercased() ? text.lowercased() : text)
         case .sortLines:
-            return Self.lines(text).sorted { $0.localizedStandardCompare($1) == .orderedAscending }.joined(separator: "\n")
+            return Self.lines(text).sorted { a, b in
+                a.isEmpty != b.isEmpty ? b.isEmpty : a.localizedStandardCompare(b) == .orderedAscending
+            }.joined(separator: "\n")
         case .removeDuplicateLines:
             var seen = Set<Substring>()
             return Self.lines(text).filter { seen.insert($0).inserted }.joined(separator: "\n")
@@ -93,8 +97,20 @@ public enum TextTransform: CaseIterable, Sendable {
 
     // MARK: Helpers
 
+    /// Splits on any line break; CRLF and CR (pasted text keeps them) come out as LF.
     private static func lines(_ text: String) -> [Substring] {
-        text.split(separator: "\n", omittingEmptySubsequences: false)
+        text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+    }
+
+    /// Upper-cases the first letter of every word, leaving the rest as is.
+    private static func capitalizingWords(_ text: String) -> String {
+        var out = ""
+        var inWord = false
+        for c in text {
+            out += inWord ? String(c) : c.uppercased()
+            inWord = c.isLetter || c.isNumber || (inWord && (c == "'" || c == "’"))
+        }
+        return out
     }
 
     private static func isBlank(_ c: Character) -> Bool { c.isWhitespace && !c.isNewline }

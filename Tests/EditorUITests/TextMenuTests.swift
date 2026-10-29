@@ -54,6 +54,11 @@ final class TextMenuTests: XCTestCase {
         _ = window
     }
 
+    func testWholeLinesLeavesOutAFinalCRLF() {
+        let text = "b\r\na\r\nz" as NSString
+        XCTAssertEqual(EditorViewController.wholeLines(NSRange(location: 1, length: 4), in: text), NSRange(location: 0, length: 4))
+    }
+
     func testFailureLeavesTextAloneAndSaysWhy() {
         let (controller, window) = editor("{oops}")
         controller.apply(.formatJSON)

@@ -12,13 +12,27 @@ struct TextTransformTests {
     @Test func changesCase() throws {
         #expect(try apply(.uppercase, "Привіт, world") == "ПРИВІТ, WORLD")
         #expect(try apply(.lowercase, "Привіт, WORLD") == "привіт, world")
-        #expect(try apply(.titleCase, "hello wORLD, привіт світ") == "Hello World, Привіт Світ")
+        #expect(try apply(.titleCase, "hello world, привіт світ") == "Hello World, Привіт Світ")
+    }
+
+    @Test func titleCaseKeepsAcronymsAndCamelCase() throws {
+        #expect(try apply(.titleCase, "use the JSON API on iPhone") == "Use The JSON API On IPhone")
+        #expect(try apply(.titleCase, "SHOUTED TEXT") == "Shouted Text")
     }
 
     // MARK: Lines
 
     @Test func sortsLinesNaturally() throws {
         #expect(try apply(.sortLines, "file10\nFile2\nfile1\nbanana") == "banana\nfile1\nFile2\nfile10")
+    }
+
+    @Test func sortPutsEmptyLinesLast() throws {
+        #expect(try apply(.sortLines, "b\n\na\n") == "a\nb\n\n")
+    }
+
+    @Test func lineTransformsSplitCRLFAndCR() throws {
+        #expect(try apply(.sortLines, "b\r\na\rc") == "a\nb\nc")
+        #expect(try apply(.trimTrailingWhitespace, "a \r\nb ") == "a\nb")
     }
 
     @Test func removesDuplicateLinesKeepingTheFirst() throws {
