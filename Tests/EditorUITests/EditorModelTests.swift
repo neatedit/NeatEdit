@@ -27,6 +27,36 @@ final class EditorModelTests: XCTestCase {
                        "7 chars, 2 lines   UTF-8   LF")
     }
 
+    func testAppendKeepsLinesAndTotals() {
+        let model = EditorModel(file: TextFile(text: "a\r"))
+        _ = model.status(selectedRange: NSRange(location: 0, length: 0))
+        model.append("\nb\n")
+        XCTAssertEqual(model.storage.string, "a\r\nb\n")
+        XCTAssertEqual(model.lineIndex.starts, LineIndex(model.storage.string as NSString).starts)
+        // "\r" + "\n" became one character.
+        XCTAssertEqual(model.status(selectedRange: NSRange(location: 0, length: 0)).right, "4 chars, 3 lines   UTF-8   CR")
+    }
+
+    func testAppendsWhileCountingDoNotRestartTheCount() {
+        let model = EditorModel(file: TextFile(text: String(repeating: "a", count: EditorModel.syncCountLimit + 1)))
+        var finished = false
+        model.onTotalsChanged = { finished = true }
+        XCTAssertTrue(model.status(selectedRange: NSRange(location: 0, length: 0)).right.hasPrefix("… chars"), model.status(selectedRange: NSRange(location: 0, length: 0)).right)
+        let deadline = Date().addingTimeInterval(10)
+        var appended = 0
+        // A log written faster than the count's debounce must not starve it.
+        while !finished, Date() < deadline {
+            model.append("x")
+            appended += 1
+            _ = model.status(selectedRange: NSRange(location: 0, length: 0))
+            RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        }
+        XCTAssertTrue(finished)
+        let total = EditorModel.syncCountLimit + 1 + appended
+        let right = model.status(selectedRange: NSRange(location: 0, length: 0)).right
+        XCTAssertTrue(right.replacingOccurrences(of: " ", with: "").hasPrefix("\(total)chars"), right)
+    }
+
     func testEncodesWithOriginalEncodingAndLineEnding() throws {
         let original = Data([0xEF, 0xBB, 0xBF]) + Data("a\r\nb".utf8)
         let model = EditorModel(file: try TextFile(data: original))

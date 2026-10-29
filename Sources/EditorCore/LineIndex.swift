@@ -24,10 +24,11 @@ public struct LineIndex: Sendable {
         return low
     }
 
-    /// Length of the longest line in UTF-16 units, line break included.
-    public func longestLine(textLength: Int) -> Int {
+    /// Length of the longest line in UTF-16 units, line break included,
+    /// among lines `firstLine` and later.
+    public func longestLine(textLength: Int, from firstLine: Int = 0) -> Int {
         var longest = 0
-        for i in 0..<starts.count {
+        for i in min(max(firstLine, 0), starts.count)..<starts.count {
             let end = i + 1 < starts.count ? starts[i + 1] : textLength
             longest = max(longest, end - starts[i])
         }
