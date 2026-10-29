@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleName</key>
-	<string>SimpleTextEdit</string>
+	<string>NeatEdit</string>
 	<key>CFBundleDisplayName</key>
-	<string>SimpleTextEdit</string>
+	<string>NeatEdit</string>
 	<key>CFBundleExecutable</key>
-	<string>SimpleTextEdit</string>
+	<string>NeatEdit</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.ex.SimpleTextEdit</string>
+	<string>com.gtd.NeatEdit</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundlePackageType</key>

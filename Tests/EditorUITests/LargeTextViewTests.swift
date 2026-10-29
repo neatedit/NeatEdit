@@ -76,7 +76,7 @@ final class LargeTextViewTests: XCTestCase {
     func testCopyWritesPlainSelectedText() {
         let view = makeView("hello\nworld")
         view.setSelection(NSRange(location: 3, length: 5))
-        let pb = NSPasteboard(name: NSPasteboard.Name("SimpleTextEditTests-\(UUID().uuidString)"))
+        let pb = NSPasteboard(name: NSPasteboard.Name("NeatEditTests-\(UUID().uuidString)"))
         view.writeSelection(to: pb)
         XCTAssertEqual(pb.string(forType: .string), "lo\nwo")
     }

@@ -3,7 +3,7 @@ import AppKit
 /// App-wide settings kept in UserDefaults. Changes are broadcast so every
 /// open tab follows along.
 public enum Preferences {
-    public static let didChange = Notification.Name("SimpleTextEditPreferencesDidChange")
+    public static let didChange = Notification.Name("NeatEditPreferencesDidChange")
 
     /// Swappable so tests don't touch the user's settings.
     static var defaults = UserDefaults.standard

@@ -1,4 +1,4 @@
-# SimpleTextEdit
+# NeatEdit
 
 A small, native macOS plain-text editor (Swift + AppKit, no dependencies).
 
@@ -17,14 +17,22 @@ A small, native macOS plain-text editor (Swift + AppKit, no dependencies).
 ## Build
 
 ```sh
-./scripts/build-app.sh        # → build/SimpleTextEdit.app
+./scripts/build-app.sh        # → build/NeatEdit.app
 swift test                    # unit + UI tests
 swift scripts/make-icon.swift # regenerate Resources/AppIcon.icns
 swift test -c release -Xswiftc -enable-testing --filter testLargeFile   # 200 MB load benchmark
+```
+
+## Install
+
+```sh
+./scripts/install.sh          # → ~/Applications/NeatEdit.app and ~/.local/bin/neatedit
+neatedit notes.txt app.log    # open files (a missing file is created empty)
+some-command | neatedit -     # open stdin
 ```
 
 ## Layout
 
 - `Sources/EditorCore` — pure logic: line index, cursor position, decoding, status text, navigation, viewer geometry, find queries.
 - `Sources/EditorUI` — AppKit: document, tabs, editor view, find bar, large file viewer, menus.
-- `Sources/SimpleTextEdit` — `main.swift` only.
+- `Sources/NeatEdit` — `main.swift` only.

@@ -179,7 +179,7 @@ public final class TextDocument: NSDocument {
         }
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.tabbingMode = .preferred
-        window.tabbingIdentifier = "SimpleTextEdit"
+        window.tabbingIdentifier = "NeatEdit"
         window.setContentSize(NSSize(width: 800, height: 600))
         let windowController = NSWindowController(window: window)
         windowController.windowFrameAutosaveName = "EditorWindow"
