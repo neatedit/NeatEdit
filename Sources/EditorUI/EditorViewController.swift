@@ -53,6 +53,7 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
         super.viewDidAppear()
         textView.wrapsLines = Preferences.wrapsLines
         textView.showsInvisibles = Preferences.showsInvisibles
+        textView.highlightsCurrentLine = Preferences.highlightsCurrentLine
         applyLineNumbers()
         view.window?.makeFirstResponder(textView)
     }
@@ -249,6 +250,7 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
         textView.setFont(Preferences.font)
         textView.wrapsLines = Preferences.wrapsLines
         textView.showsInvisibles = Preferences.showsInvisibles
+        textView.highlightsCurrentLine = Preferences.highlightsCurrentLine
         applyLineNumbers()
     }
 
@@ -316,6 +318,7 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
     }
     @objc func toggleLineNumbers(_ sender: Any?) { Preferences.showsLineNumbers.toggle() }
     @objc func toggleInvisibles(_ sender: Any?) { Preferences.showsInvisibles.toggle() }
+    @objc func toggleCurrentLine(_ sender: Any?) { Preferences.highlightsCurrentLine.toggle() }
     @objc func showFontPanel(_ sender: Any?) { Preferences.showFontPanel() }
     @objc func changeFont(_ sender: Any?) {
         guard let manager = sender as? NSFontManager else { return }
@@ -399,6 +402,9 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
         }
         if menuItem.action == #selector(toggleInvisibles(_:)) {
             menuItem.state = Preferences.showsInvisibles ? .on : .off
+        }
+        if menuItem.action == #selector(toggleCurrentLine(_:)) {
+            menuItem.state = Preferences.highlightsCurrentLine ? .on : .off
         }
         if menuItem.action == #selector(toggleUnwrapPastedText(_:)) {
             menuItem.state = Preferences.unwrapsPastedText ? .on : .off

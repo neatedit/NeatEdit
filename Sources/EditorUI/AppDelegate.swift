@@ -144,6 +144,7 @@ enum MainMenu {
             item("Wrap Lines", #selector(EditorViewController.toggleWrapLines(_:)), "w", [.command, .option]),
             item("Show Line Numbers", #selector(EditorViewController.toggleLineNumbers(_:)), "l", [.command, .option]),
             item("Show Invisibles", #selector(EditorViewController.toggleInvisibles(_:)), "i", [.command, .option]),
+            item("Highlight Current Line", #selector(EditorViewController.toggleCurrentLine(_:))),
             .separator(),
             item("Bigger", #selector(EditorViewController.makeTextBigger(_:)), "+"),
             item("Smaller", #selector(EditorViewController.makeTextSmaller(_:)), "-"),

@@ -14,6 +14,7 @@ public enum Preferences {
     private static let lineNumbersKey = "showLineNumbers"
     private static let unwrapPasteKey = "unwrapPastedText"
     private static let invisiblesKey = "showInvisibles"
+    private static let currentLineKey = "highlightCurrentLine"
     static let defaultFontSize: CGFloat = 13
 
     public static func registerDefaults() {
@@ -23,6 +24,7 @@ public enum Preferences {
             lineNumbersKey: false,
             unwrapPasteKey: true,
             invisiblesKey: false,
+            currentLineKey: true,
         ])
         // Reopen every tab (including unsaved scratch tabs) after quitting,
         // regardless of the system "close windows when quitting" setting.
@@ -54,6 +56,12 @@ public enum Preferences {
     public static var showsInvisibles: Bool {
         get { defaults.bool(forKey: invisiblesKey) }
         set { set(newValue, forKey: invisiblesKey) }
+    }
+
+    /// A soft band behind the caret's line.
+    public static var highlightsCurrentLine: Bool {
+        get { defaults.bool(forKey: currentLineKey) }
+        set { set(newValue, forKey: currentLineKey) }
     }
 
     /// Undo terminal hard wrapping in pasted text (as its own undo step).

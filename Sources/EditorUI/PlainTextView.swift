@@ -3,7 +3,7 @@ import EditorCore
 
 /// A plain-text NSTextView: pastes without formatting exactly at the caret
 /// and never "helps" by rewriting what you type.
-public final class PlainTextView: NSTextView {
+public final class PlainTextView: NSTextView, NSLayoutManagerDelegate {
     /// Builds a TextKit 1 stack, which handles multi-hundred-MB documents with
     /// non-contiguous layout far better than TextKit 2.
     public static func make(storage: NSTextStorage = NSTextStorage(), font: NSFont = Preferences.font) -> PlainTextView {
@@ -16,6 +16,7 @@ public final class PlainTextView: NSTextView {
         layoutManager.addTextContainer(container)
 
         let view = PlainTextView(frame: .zero, textContainer: container)
+        layoutManager.delegate = view
         view.configure(font: font)
         return view
     }
@@ -107,6 +108,20 @@ public final class PlainTextView: NSTextView {
     // MARK: Line commands
 
     @objc func duplicateLine(_ sender: Any?) { apply(LineEdit.duplicate, "Duplicate") }
+    /// Clicks are hit-tested against the layout as it stands; with
+    /// non-contiguous layout the area on screen may not be finished yet (seen
+    /// after typing: a click on the empty last line landed on the row above).
+    /// Lay out what's visible first. It's only the visible rect, so it's cheap.
+    override public func mouseDown(with event: NSEvent) {
+        if let layoutManager, let textContainer {
+            layoutManager.ensureLayout(forBoundingRect: visibleRect, in: textContainer)
+            if let storage = textStorage, storage.length > 0 {
+                layoutManager.ensureLayout(forCharacterRange: NSRange(location: storage.length - 1, length: 1))
+            }
+        }
+        super.mouseDown(with: event)
+    }
+
     override func moveLineUp(_ sender: Any?) { apply(LineEdit.moveUp, "Move Line Up") }
     override func moveLineDown(_ sender: Any?) { apply(LineEdit.moveDown, "Move Line Down") }
 
@@ -153,6 +168,7 @@ public final class PlainTextView: NSTextView {
         if let storage = textStorage, storage.length > 0 {
             storage.addAttributes(typingAttributes, range: NSRange(location: 0, length: storage.length))
         }
+        invalidateCurrentLine()
     }
 
     /// Marks for spaces, tabs and line ends, drawn by the layout manager.
@@ -163,6 +179,133 @@ public final class PlainTextView: NSTextView {
             manager.showsInvisibles = newValue
             needsDisplay = true
         }
+    }
+
+    var highlightsCurrentLine = true {
+        didSet { if highlightsCurrentLine != oldValue { invalidateCurrentLine() } }
+    }
+
+    /// The caret's line (every wrapped row, up to `bandRowLimit` each way),
+    /// across the view, in view coordinates. Nil while text is selected or
+    /// when off. Cached: drawing asks for it once per tile.
+    var currentLineRect: NSRect? {
+        let ranges = selectedRanges.map(\.rangeValue)
+        guard highlightsCurrentLine, ranges.count == 1, let caret = ranges.first, caret.length == 0,
+              let layoutManager, let storage = textStorage else { return nil }
+        let key = BandKey(caret: caret.location, length: storage.length, storage: ObjectIdentifier(storage),
+                          width: bounds.width, generation: layoutGeneration)
+        if let bandCache, bandCache.key == key { return bandCache.rect }
+        // Never lay out while the storage is mid-edit; ask again afterwards.
+        guard storage.editedMask.isEmpty else { return nil }
+        measuringBand = true
+        defer { measuringBand = false }
+        let rect = Self.lineBand(at: caret.location, in: storage.string as NSString, layoutManager: layoutManager)
+            .map { NSRect(x: 0, y: $0.minY + textContainerOrigin.y, width: bounds.width, height: $0.height) }
+        bandCache = (key, rect)
+        return rect
+    }
+
+    private struct BandKey: Equatable {
+        let caret: Int, length: Int, storage: ObjectIdentifier, width: CGFloat, generation: Int
+    }
+
+    private var bandCache: (key: BandKey, rect: NSRect?)?
+    /// Bumped when line geometry changes without the key noticing (an edit
+    /// of the same length, a new font, wrapping on or off).
+    private var layoutGeneration = 0
+    /// The band as last painted, so a move repaints where it really was.
+    private var paintedBand: NSRect?
+    private var bandRefreshPending = false
+    /// Layout we force while measuring the band isn't news about it.
+    private var measuringBand = false
+
+    /// Any edit to the storage, including ones that bypass the text view
+    /// (a reload of the same length): the band may have moved.
+    func textStorageDidEdit() { invalidateCurrentLine() }
+
+    /// Non-contiguous layout catching up can move lines below what it laid out.
+    public func layoutManager(_ layoutManager: NSLayoutManager, didCompleteLayoutFor textContainer: NSTextContainer?, atEnd layoutFinishedFlag: Bool) {
+        guard !measuringBand, highlightsCurrentLine else { return }
+        invalidateCurrentLine()
+    }
+
+    /// A very long line (minified JSON) is banded only this many rows around
+    /// the caret, so a caret move never lays out the whole line.
+    static let bandRowLimit = 200
+
+    /// Rows of the logical line around `caret`, in container coordinates.
+    private static func lineBand(at caret: Int, in text: NSString, layoutManager: NSLayoutManager) -> NSRect? {
+        if caret == text.length, text.length == 0 || isLineBreak(text.character(at: text.length - 1)) {
+            // After a final line break: the empty last line.
+            layoutManager.ensureLayout(forCharacterRange: NSRange(location: max(text.length - 1, 0), length: min(text.length, 1)))
+            let extra = layoutManager.extraLineFragmentRect
+            return extra.height > 0 ? extra : nil
+        }
+        var glyphs = NSRange()
+        let at = layoutManager.glyphIndexForCharacter(at: min(caret, text.length - 1))
+        var band = layoutManager.lineFragmentRect(forGlyphAt: at, effectiveRange: &glyphs)
+        var start = glyphs, end = glyphs
+        for _ in 0..<bandRowLimit {
+            let first = layoutManager.characterIndexForGlyph(at: start.location)
+            guard first > 0, !isLineBreak(text.character(at: first - 1)) else { break }
+            band = band.union(layoutManager.lineFragmentRect(forGlyphAt: start.location - 1, effectiveRange: &start))
+        }
+        for _ in 0..<bandRowLimit {
+            let next = layoutManager.characterIndexForGlyph(at: NSMaxRange(end))
+            guard NSMaxRange(end) > end.location, next < text.length, !isLineBreak(text.character(at: next - 1)) else { break }
+            band = band.union(layoutManager.lineFragmentRect(forGlyphAt: NSMaxRange(end), effectiveRange: &end))
+        }
+        return band.height > 0 ? band : nil
+    }
+
+    private static func isLineBreak(_ c: unichar) -> Bool {
+        c == 0x0A || c == 0x0D || c == 0x85 || c == 0x2028 || c == 0x2029
+    }
+
+    /// Line geometry changed: forget the band and repaint it later.
+    private func invalidateCurrentLine() {
+        layoutGeneration += 1
+        scheduleBandRefresh()
+    }
+
+    /// After the current event (and any storage edit) settles, repaint where
+    /// the band was and where it is now.
+    private func scheduleBandRefresh() {
+        guard !bandRefreshPending else { return }
+        bandRefreshPending = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.bandRefreshPending = false
+            let band = self.currentLineRect
+            guard band != self.paintedBand else { return }
+            if let old = self.paintedBand { self.setNeedsDisplay(old) }
+            if let band { self.setNeedsDisplay(band) }
+        }
+    }
+
+    override public func setSelectedRanges(_ ranges: [NSValue], affinity: NSSelectionAffinity, stillSelecting: Bool) {
+        super.setSelectedRanges(ranges, affinity: affinity, stillSelecting: stillSelecting)
+        scheduleBandRefresh()
+    }
+
+    override public func didChangeText() {
+        super.didChangeText()
+        invalidateCurrentLine()
+    }
+
+    override public func setFrameSize(_ newSize: NSSize) {
+        let rewraps = newSize.width != frame.width
+        super.setFrameSize(newSize)
+        if rewraps { invalidateCurrentLine() }
+    }
+
+    override public func drawBackground(in rect: NSRect) {
+        super.drawBackground(in: rect)
+        let band = currentLineRect
+        paintedBand = band
+        guard let band = band?.intersection(rect), !band.isEmpty else { return }
+        NSColor.currentLine.setFill()
+        band.fill(using: .sourceOver)
     }
 
     public var wrapsLines: Bool = true {
@@ -185,6 +328,7 @@ public final class PlainTextView: NSTextView {
             container.size = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
             maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         }
+        invalidateCurrentLine()
         needsDisplay = true
     }
 }
@@ -205,8 +349,26 @@ extension NSTextView {
 
 /// Draws whitespace marks over the glyphs it draws, so only what's on
 /// screen is looked at, however long the document.
+extension NSColor {
+    /// Soft yellow behind the caret's line, fainter in dark mode.
+    static let currentLine = NSColor(name: "currentLine") { appearance in
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            ? NSColor.systemYellow.withAlphaComponent(0.10)
+            : NSColor.systemYellow.withAlphaComponent(0.16)
+    }
+}
+
 final class InvisiblesLayoutManager: NSLayoutManager {
     var showsInvisibles = false
+
+    override func processEditing(
+        for textStorage: NSTextStorage, edited editMask: NSTextStorageEditActions, range newCharRange: NSRange,
+        changeInLength delta: Int, invalidatedRange invalidatedCharRange: NSRange
+    ) {
+        super.processEditing(for: textStorage, edited: editMask, range: newCharRange,
+                             changeInLength: delta, invalidatedRange: invalidatedCharRange)
+        (firstTextView as? PlainTextView)?.textStorageDidEdit()
+    }
 
     override func drawGlyphs(forGlyphRange glyphsToShow: NSRange, at origin: NSPoint) {
         super.drawGlyphs(forGlyphRange: glyphsToShow, at: origin)
