@@ -14,10 +14,6 @@ final class DocumentIntegrationTests: XCTestCase {
         return (document, controller)
     }
 
-    private func drainMainQueue() {
-        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
-    }
-
     func testUntitledDocumentsSaveAsTxtByDefault() {
         let document = TextDocument()
         // Restored untitled tabs come back typed as generic data/text, which has no extension.

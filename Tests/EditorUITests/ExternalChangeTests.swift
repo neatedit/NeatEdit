@@ -17,7 +17,7 @@ final class ExternalChangeTests: XCTestCase {
 
     private func type(_ text: String, at location: Int, in controller: EditorViewController) {
         controller.textView.insertText(text, replacementRange: NSRange(location: location, length: 0))
-        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        drainMainQueue()
     }
 
     private func merge(_ document: TextDocument) -> ExternalMerge? {
@@ -319,7 +319,7 @@ final class ExternalChangeTests: XCTestCase {
 
     // MARK: Review findings
 
-    private func spin() { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+    private func spin() { drainMainQueue() }
 
     /// As in the app: the check lands from a main-queue block, then the run loop turns.
     private func diskChangesLikeTheApp(_ text: String, at url: URL, document: TextDocument) throws {
