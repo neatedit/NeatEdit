@@ -20,7 +20,7 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
 
     /// Above this many UTF-16 units we only lay out what's on screen and skip
     /// live find highlighting; both otherwise chew through the whole file.
-    static let largeDocumentLimit = 5_000_000
+    static var largeDocumentLimit = 5_000_000
 
     init(model: EditorModel) {
         self.model = model

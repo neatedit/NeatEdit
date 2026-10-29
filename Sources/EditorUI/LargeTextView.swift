@@ -4,14 +4,14 @@ import EditorCore
 /// Read-only text view for huge files. Every line is one fixed-height row, so
 /// drawing, hit testing and scrolling only ever touch the lines on screen —
 /// unlike NSTextView, which lays out from the top of the document.
-final class LargeTextView: NSView, NSTextFinderClient, NSMenuItemValidation {
+final class LargeTextView: NSView, NSMenuItemValidation {
     enum Granularity { case character, word, line }
 
     private(set) var model: EditorModel
     private(set) var layout: ViewerLayout
     private(set) var selection = NSRange(location: 0, length: 0)
     var onSelectionChange: (() -> Void)?
-    var textFinder: NSTextFinder?
+    weak var findController: FindController?
 
     private var font: NSFont
     private var anchor = NSRange(location: 0, length: 0)
@@ -367,7 +367,7 @@ final class LargeTextView: NSView, NSTextFinderClient, NSMenuItemValidation {
     @objc func performFindPanelAction(_ sender: Any?) {
         guard let tag = (sender as? NSValidatedUserInterfaceItem)?.tag,
               let action = NSTextFinder.Action(rawValue: tag) else { return }
-        textFinder?.performAction(action)
+        findController?.perform(action)
     }
 
     override func centerSelectionInVisibleArea(_ sender: Any?) {
@@ -379,8 +379,8 @@ final class LargeTextView: NSView, NSTextFinderClient, NSMenuItemValidation {
         switch item.action {
         case #selector(copy(_:)): return selection.length > 0
         case #selector(performFindPanelAction(_:)):
-            guard let action = NSTextFinder.Action(rawValue: item.tag), let textFinder else { return false }
-            return textFinder.validateAction(action)
+            guard let action = NSTextFinder.Action(rawValue: item.tag), let findController else { return false }
+            return findController.validate(action)
         case #selector(NSText.paste(_:)), #selector(NSText.cut(_:)), #selector(NSText.delete(_:)):
             return false
         default:
@@ -388,30 +388,9 @@ final class LargeTextView: NSView, NSTextFinderClient, NSMenuItemValidation {
         }
     }
 
-    // MARK: NSTextFinderClient
+    // MARK: Find
 
-    var isSelectable: Bool { true }
     var isEditable: Bool { false }
-    var allowsMultipleSelection: Bool { false }
-
-    func stringLength() -> Int { text.length }
-
-    func string(at characterIndex: Int, effectiveRange outRange: NSRangePointer, endsWithSearchBoundary outFlag: UnsafeMutablePointer<ObjCBool>) -> String {
-        outRange.pointee = NSRange(location: 0, length: text.length)
-        outFlag.pointee = true
-        return model.storage.string
-    }
-
-    var firstSelectedRange: NSRange { selection }
-
-    var selectedRanges: [NSValue] {
-        get { [NSValue(range: selection)] }
-        set {
-            guard let range = newValue.first?.rangeValue else { return }
-            anchor = NSRange(location: range.location, length: 0)
-            setSelection(range)
-        }
-    }
 
     func scrollRangeToVisible(_ range: NSRange) {
         let start = caretRect(for: range.location)
@@ -419,43 +398,20 @@ final class LargeTextView: NSView, NSTextFinderClient, NSMenuItemValidation {
         let target = NSRect(x: start.minX, y: start.minY - visibleRect.height / 3, width: 1, height: visibleRect.height / 3 * 2)
         scrollToVisible(target.insetBy(dx: -layout.charWidth * 8, dy: 0))
     }
+}
 
-    var visibleCharacterRanges: [NSValue] {
-        let lines = layout.lines(in: visibleRect, lineCount: model.lineIndex.lineCount)
-        guard let first = lines.first, let last = lines.last else { return [] }
-        let start = model.lineIndex.starts[first]
-        let end = NSMaxRange(model.lineIndex.contentRange(ofLine: last, in: text))
-        return [NSValue(range: NSRange(location: start, length: end - start))]
+extension LargeTextView: FindTarget {
+    var findText: NSString { text }
+    var findLength: Int { model.storage.length }
+    func findSubstring(_ range: NSRange) -> String { text.substring(with: range) }
+    var findSelection: NSRange { selection }
+    var canReplaceFound: Bool { false }
+
+    func selectFound(_ range: NSRange, indicate: Bool) {
+        anchor = NSRange(location: range.location, length: 0)
+        setSelection(range, scroll: false)
+        if indicate { scrollRangeToVisible(range) }
     }
 
-    func rects(forCharacterRange range: NSRange) -> [NSValue]? {
-        let firstLine = model.lineIndex.line(containing: range.location)
-        let lastLine = model.lineIndex.line(containing: NSMaxRange(range))
-        var rects: [NSValue] = []
-        for line in firstLine...lastLine {
-            let run = run(forLine: line, visibleX: visibleXRange)
-            let start = max(range.location, run.content.location)
-            let end = min(NSMaxRange(range), NSMaxRange(run.content))
-            guard end > start || range.length == 0 else { continue }
-            let row = layout.lineRect(line, width: 0)
-            let x0 = run.x(forOffset: start)
-            rects.append(NSValue(rect: NSRect(x: x0, y: row.minY, width: run.x(forOffset: end) - x0, height: row.height)))
-        }
-        return rects
-    }
-
-    func contentView(at index: Int, effectiveCharacterRange outRange: NSRangePointer) -> NSView {
-        outRange.pointee = NSRange(location: 0, length: text.length)
-        return self
-    }
-
-    func drawCharacters(in range: NSRange, forContentView view: NSView) {
-        guard let context = NSGraphicsContext.current?.cgContext else { return }
-        for value in rects(forCharacterRange: range) ?? [] {
-            context.saveGState()
-            value.rectValue.clip()
-            draw(value.rectValue)
-            context.restoreGState()
-        }
-    }
+    func replaceFound(_ range: NSRange, with text: String, actionName: String) -> Bool { false }
 }

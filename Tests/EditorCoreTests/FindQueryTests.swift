@@ -165,4 +165,35 @@ struct FindQueryTests {
         #expect(found(query, text as String, query.next(in: text, after: NSRange(location: 1, length: 0),
                                                         scope: NSRange(location: 0, length: 10))) == "cat")
     }
+
+    @Test func previousInAHugeTextOnlyLooksNearTheCaret() throws {
+        let query = try FindQuery(find: [.text("needle")])
+        let filler = String(repeating: "hay hay hay hay\n", count: 1_500_000)  // 24 MB
+        let text = ("needle\n" + filler + "needle here\n" + filler) as NSString
+        let all = NSRange(location: 0, length: text.length)
+        let start = Date()
+        let near = query.previous(in: text, before: NSRange(location: text.length, length: 0), scope: all)
+        #expect(Date().timeIntervalSince(start) < 2)
+        #expect(near?.range.location == 7 + (filler as NSString).length)
+        // Far away it still finds the first one.
+        let far = query.previous(in: text, before: near!.range, scope: all)
+        #expect(far?.range.location == 0)
+    }
+
+    @Test func previousWithAPlaceholderMatchingEveryLineIsQuick() throws {
+        let query = try FindQuery(find: [.text("hay "), .placeholder(1), .text(" hay")])
+        let text = String(repeating: "hay hay hay hay\n", count: 1_500_000) as NSString
+        let all = NSRange(location: 0, length: text.length)
+        let start = Date()
+        let match = query.previous(in: text, before: NSRange(location: text.length, length: 0), scope: all)
+        #expect(Date().timeIntervalSince(start) < 0.2)
+        #expect(match?.range.location == text.length - 16)
+    }
+
+    @Test func previousFindsAMatchAcrossTheWindowEdge() throws {
+        let query = try FindQuery(find: [.text("ab")])
+        let text = (String(repeating: "x", count: 65_535) + "ab" + String(repeating: "y", count: 10)) as NSString
+        let match = query.previous(in: text, before: NSRange(location: text.length, length: 0), scope: NSRange(location: 0, length: text.length))
+        #expect(match?.range == NSRange(location: 65_535, length: 2))
+    }
 }

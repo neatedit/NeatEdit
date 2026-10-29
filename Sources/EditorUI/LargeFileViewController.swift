@@ -7,7 +7,7 @@ final class LargeFileViewController: NSViewController, DocumentContent, NSMenuIt
     let textView: LargeTextView
     private let scrollView = NSScrollView()
     let statusBar = StatusBar()
-    private let textFinder = NSTextFinder()
+    private(set) lazy var findController = FindController(textView: textView)
     var leftStatus: NSTextField { statusBar.left }
     var rightStatus: String { statusBar.rightText }
 
@@ -23,15 +23,12 @@ final class LargeFileViewController: NSViewController, DocumentContent, NSMenuIt
     override func loadView() {
         scrollView.hasHorizontalScroller = true
         scrollView.documentView = textView
-        view = EditorChrome.root(scrollView: scrollView, statusBar: statusBar)
+        view = EditorChrome.root(scrollView: scrollView, statusBar: statusBar, findBar: findController.bar)
         statusBar.canChangeLineEnding = false
         statusBar.encodingButton.target = self
         statusBar.encodingButton.action = #selector(showEncodingMenu(_:))
 
-        textFinder.client = textView
-        textFinder.findBarContainer = scrollView
-        textFinder.isIncrementalSearchingEnabled = false
-        textView.textFinder = textFinder
+        textView.findController = findController
         textView.onSelectionChange = { [weak self] in
             self?.statusBar.scheduleUpdate { self?.updateStatus() }
         }
@@ -49,17 +46,16 @@ final class LargeFileViewController: NSViewController, DocumentContent, NSMenuIt
     func replaceModel(_ newModel: EditorModel) {
         model = newModel
         textView.replaceModel(newModel)
-        textFinder.noteClientStringWillChange()
+        findController.textWasReplaced()
         attach(newModel)
     }
 
     func reload(from file: TextFile) { replaceModel(EditorModel(file: file)) }
 
-    /// The file grew: the document appends to the model between these two.
-    func textWillGrow() { textFinder.noteClientStringWillChange() }
-
+    /// The file grew: the document appended `model` past `oldLength`.
     func textDidGrow(from oldLength: Int) {
         textView.textDidGrow(from: oldLength)
+        findController.textDidChange()
         updateStatus()
     }
     func replaceText(with text: String, actionName: String) {}
