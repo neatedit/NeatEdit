@@ -87,20 +87,27 @@ final class EditorTailTests: XCTestCase {
         XCTAssertEqual(controller.textView.selectedRange(), NSRange(location: 3, length: 2))
     }
 
-    func testAConstantWriterDoesNotStarveUpdates() throws {
-        let url = try makeLog(lines: 100)
-        let (document, controller, _) = try open(url)
+    func testAConstantWriterDoesNotStarveUpdatesNorPileUpUndo() throws {
+        let url = try makeLog(lines: 500)
+        let (document, controller, clip) = try open(url)
         defer { document.close() }
+        controller.textView.scrollToEndOfDocument(nil)
         let start = Date()
-        var written = 100
+        var written = 500
         var seenWhileWriting = 0
-        while Date().timeIntervalSince(start) < 1 {
+        while Date().timeIntervalSince(start) < 1.5 {
             written += 1
             try append("line \(written)\n", to: url)
+            // File presenter news, as it arrives in the app (late, merged).
+            if written % 10 == 0 { document.presentedItemDidChange() }
             RunLoop.main.run(until: Date().addingTimeInterval(0.02))
             seenWhileWriting = lines(controller) - 1
         }
-        XCTAssertGreaterThan(seenWhileWriting, 100)
+        XCTAssertGreaterThan(seenWhileWriting, 500)
+        wait { lines(controller) == written + 1 }
+        controller.view.window?.layoutIfNeeded()
+        XCTAssertFalse(document.undoManager?.canUndo ?? true, "following a log adds no undo steps")
+        XCTAssertEqual(clip.bounds.maxY, controller.textView.bounds.height, accuracy: 5, "still at the bottom")
     }
 
     func testTypingAfterAnAppendSavesWithoutAConflict() throws {
@@ -224,5 +231,18 @@ final class EditorTailTests: XCTestCase {
         wait(1.5) { false }
 
         if case .deleted = document.externalState { XCTFail("a moved file was taken for deleted") }
+    }
+
+    func testARewriteInPlaceThatGrowsIsNotTakenForAnAppend() throws {
+        let url = try makeLog(lines: 1000)
+        let (document, controller, _) = try open(url)
+        defer { document.close() }
+        // Truncate and write, as non-atomic saves do: looks like growth.
+        let text = "LINE 1\n" + (2...1001).map { "line \($0)\n" }.joined()
+        try Data(text.utf8).write(to: url)
+        wait { controller.textView.string == text }
+
+        XCTAssertEqual(controller.textView.string, text)
+        XCTAssertEqual(document.baseText, text)
     }
 }
