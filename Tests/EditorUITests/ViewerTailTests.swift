@@ -114,6 +114,24 @@ final class ViewerTailTests: XCTestCase {
         document.close()
     }
 
+    func testFollowsAFileRecreatedLater() throws {
+        let url = try makeLog(lines: 100)
+        let (document, controller, _) = try open(url)
+        try FileManager.default.removeItem(at: url)
+        RunLoop.main.run(until: Date().addingTimeInterval(1.2))
+        try Data("fresh\n".utf8).write(to: url)
+        let deadline = Date().addingTimeInterval(4)
+        while controller.model.storage.string != "fresh\n", Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        }
+        XCTAssertEqual(controller.model.storage.string, "fresh\n")
+        try append("more\n", to: url)
+        let next = Date().addingTimeInterval(2)
+        while controller.model.lineIndex.lineCount < 3, Date() < next { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+        XCTAssertEqual(controller.model.storage.string, "fresh\nmore\n")
+        document.close()
+    }
+
     func testTruncatedFileIsReloadedWhole() throws {
         let url = try makeLog(lines: 100)
         let (document, controller, _) = try open(url)

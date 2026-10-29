@@ -53,7 +53,6 @@ final class LargeTextView: NSView, NSTextFinderClient, NSMenuItemValidation {
         let wasAtEnd = visibleRect.maxY >= bounds.height - layout.lineHeight
         let firstNewLine = model.lineIndex.line(containing: max(oldLength - 1, 0))
         longestLine = max(longestLine, model.lineIndex.longestLine(textLength: model.storage.length, from: firstNewLine))
-        textFinder?.noteClientStringWillChange()
         updateFrameSize()
         needsDisplay = true
         if wasAtEnd { scrollToEndOfDocument(nil) }

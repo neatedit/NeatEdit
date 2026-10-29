@@ -82,9 +82,11 @@ public final class EditorModel: NSObject, NSTextStorageDelegate {
     public func append(_ text: String) {
         guard !text.isEmpty else { return }
         let length = storage.length
-        // A CR at the end and an LF at the start become one character.
-        let joins = length > 0 && (storage.string as NSString).character(at: length - 1) == 0x0D && text.utf16.first == 0x0A
-        let added = text.count - (joins ? 1 : 0)
+        // The last character may absorb the start of the new text (CR + LF,
+        // an accent, half an emoji): count them together.
+        let current = storage.string as NSString
+        let last = length > 0 ? current.substring(with: current.rangeOfComposedCharacterSequence(at: length - 1)) : ""
+        let added = (last + text).count - (last.isEmpty ? 0 : 1)
         isAppending = true
         storage.append(NSAttributedString(string: text, attributes: [.font: Preferences.font]))
         isAppending = false

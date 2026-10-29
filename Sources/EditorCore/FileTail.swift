@@ -41,12 +41,12 @@ public struct FileTail: Sendable {
         guard size > byteCount else { return .unchanged }
 
         let chunk = try read(byteCount..<size)
-        let bytes = pending + chunk
+        let bytes = pending.isEmpty ? chunk : pending + chunk
         let complete = encoding == .utf8 ? Self.completeUTF8Prefix(bytes) : bytes.count
         guard let text = String(data: bytes.prefix(complete), encoding: encoding) else { return .rewritten }
 
         byteCount += chunk.count
-        sample = Data((sample + chunk).suffix(Self.sampleSize))
+        sample = chunk.count >= Self.sampleSize ? Data(chunk.suffix(Self.sampleSize)) : Data((sample + chunk).suffix(Self.sampleSize))
         pending = Data(bytes.suffix(from: bytes.startIndex + complete))
         return text.isEmpty ? .unchanged : .appended(text)
     }

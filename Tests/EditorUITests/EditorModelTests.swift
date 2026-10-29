@@ -37,6 +37,13 @@ final class EditorModelTests: XCTestCase {
         XCTAssertEqual(model.status(selectedRange: NSRange(location: 0, length: 0)).right, "4 chars, 3 lines   UTF-8   CR")
     }
 
+    func testAppendThatCompletesTheLastCharacterAddsNone() {
+        let model = EditorModel(file: TextFile(text: "cafe"))
+        _ = model.status(selectedRange: NSRange(location: 0, length: 0))
+        model.append("\u{301}!")
+        XCTAssertEqual(model.status(selectedRange: NSRange(location: 0, length: 0)).right, "5 chars, 1 lines   UTF-8   LF")
+    }
+
     func testAppendsWhileCountingDoNotRestartTheCount() {
         let model = EditorModel(file: TextFile(text: String(repeating: "a", count: EditorModel.syncCountLimit + 1)))
         var finished = false

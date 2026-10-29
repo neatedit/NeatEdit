@@ -11,7 +11,7 @@ A small, native macOS plain-text editor (Swift + AppKit, no dependencies).
 - Find & replace (⌘F / ⌥⌘F) with Coda-style numbered placeholders: ★ adds a chip to Find that matches any text on the line, and the same number in Replace puts that text back. Options (⚙): match case, regular expression (`$1` templates, `^`/`$` per line), in selection. Replace All is a single undo step.
 - Text menu: UPPERCASE / lowercase / Title Case; sort lines (natural order), remove duplicate or empty lines, trim trailing whitespace, join lines, unwrap lines; tabs ↔ spaces (tab width 4, Spaces to Tabs touches indentation only); format / minify JSON (key order and numbers kept as written); Base64 and URL encode / decode. Each acts on the selection — line commands take whole lines — or on the whole text when nothing is selected, as one ⌘Z. Invalid JSON or Base64 leaves the text alone and says why in the status bar.
 - New documents save as `.txt` by default.
-- Files over ~20 MB open in a read-only viewer that stays instant at hundreds of MB (select, copy, find, go to line).
+- Files over ~20 MB open in a read-only viewer that stays instant at hundreds of MB (select, copy, find, go to line). It follows a growing file like `tail -f`: only the added bytes are read, and when you're at the bottom the view keeps up with new lines (scroll up and it stays put). A truncated, rewritten or recreated file is reloaded whole.
 
 ## Build
 
