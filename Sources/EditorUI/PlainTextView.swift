@@ -107,8 +107,8 @@ public final class PlainTextView: NSTextView {
     // MARK: Line commands
 
     @objc func duplicateLine(_ sender: Any?) { apply(LineEdit.duplicate, "Duplicate") }
-    @objc func moveLineUp(_ sender: Any?) { apply(LineEdit.moveUp, "Move Line Up") }
-    @objc func moveLineDown(_ sender: Any?) { apply(LineEdit.moveDown, "Move Line Down") }
+    override func moveLineUp(_ sender: Any?) { apply(LineEdit.moveUp, "Move Line Up") }
+    override func moveLineDown(_ sender: Any?) { apply(LineEdit.moveDown, "Move Line Down") }
 
     /// One undo step; a column selection counts as the lines it spans.
     private func apply(_ make: (NSString, NSRange) -> LineEdit?, _ actionName: String) {
@@ -129,7 +129,8 @@ public final class PlainTextView: NSTextView {
     override public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(performFindPanelAction(_:)) { return findController != nil }
         if [#selector(duplicateLine(_:)), #selector(moveLineUp(_:)), #selector(moveLineDown(_:))].contains(menuItem.action) {
-            return isEditable
+            // With a sheet up the keys are meant for it, not the document behind.
+            return isEditable && window?.attachedSheet == nil
         }
         return super.validateMenuItem(menuItem)
     }
@@ -188,6 +189,20 @@ public final class PlainTextView: NSTextView {
     }
 }
 
+/// ⌥↑ / ⌥↓ are menu shortcuts for moving lines. Every other text view
+/// (find fields, sheets) keeps what they do there: paragraph start / end.
+extension NSTextView {
+    @objc func moveLineUp(_ sender: Any?) {
+        moveBackward(sender)
+        moveToBeginningOfParagraph(sender)
+    }
+
+    @objc func moveLineDown(_ sender: Any?) {
+        moveForward(sender)
+        moveToEndOfParagraph(sender)
+    }
+}
+
 /// Draws whitespace marks over the glyphs it draws, so only what's on
 /// screen is looked at, however long the document.
 final class InvisiblesLayoutManager: NSLayoutManager {
@@ -196,24 +211,41 @@ final class InvisiblesLayoutManager: NSLayoutManager {
     override func drawGlyphs(forGlyphRange glyphsToShow: NSRange, at origin: NSPoint) {
         super.drawGlyphs(forGlyphRange: glyphsToShow, at: origin)
         guard showsInvisibles, let storage = textStorage else { return }
+        // A long unwrapped line comes in whole: look only at what's in the clip.
+        var glyphs = glyphsToShow
+        if let clip = NSGraphicsContext.current?.cgContext.boundingBoxOfClipPath, let container = textContainers.first {
+            glyphs = NSIntersectionRange(glyphs, glyphRange(forBoundingRect: clip.offsetBy(dx: -origin.x, dy: -origin.y), in: container))
+        }
+        guard glyphs.length > 0 else { return }
         let text = storage.string as NSString
-        let characters = characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil)
-        var attributes: [NSAttributedString.Key: Any] = [.foregroundColor: NSColor.tertiaryLabelColor]
+        let characters = characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
+        let color = NSColor.tertiaryLabelColor
         for offset in characters.location..<NSMaxRange(characters) {
             let character = text.character(at: offset)
             let symbol: String
             if let mark = Invisibles.symbol(for: character) {
                 symbol = mark
-            } else if character == 0x0A || (character == 0x0D && (offset + 1 == text.length || text.character(at: offset + 1) != 0x0A)) {
+            } else if Self.isLineEnd(character, followedBy: offset + 1 < text.length ? text.character(at: offset + 1) : nil) {
                 symbol = Invisibles.lineEnd
             } else {
                 continue
             }
             let glyph = glyphIndexForCharacter(at: offset)
             let line = lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
-            let x = location(forGlyphAt: glyph).x
-            attributes[.font] = storage.attribute(.font, at: offset, effectiveRange: nil)
-            (symbol as NSString).draw(at: NSPoint(x: origin.x + line.minX + x, y: origin.y + line.minY), withAttributes: attributes)
+            let location = location(forGlyphAt: glyph)
+            guard let font = storage.attribute(.font, at: offset, effectiveRange: nil) as? NSFont else { continue }
+            // From the baseline, so a line made taller by an emoji keeps its marks in place.
+            let point = NSPoint(x: origin.x + line.minX + location.x, y: origin.y + line.minY + location.y - font.ascender)
+            (symbol as NSString).draw(at: point, withAttributes: [.font: font, .foregroundColor: color])
+        }
+    }
+
+    /// One mark per line end: CRLF gets it on the LF.
+    private static func isLineEnd(_ character: unichar, followedBy next: unichar?) -> Bool {
+        switch character {
+        case 0x0A, 0x85, 0x2028, 0x2029: true
+        case 0x0D: next != 0x0A
+        default: false
         }
     }
 }

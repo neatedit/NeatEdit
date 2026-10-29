@@ -170,7 +170,7 @@ final class LargeTextView: NSView, NSMenuItemValidation {
             context.textPosition = CGPoint(x: run.originX, y: row.minY + font.ascender + (row.height - font.ascender + font.descender) / 2)
             CTLineDraw(run.line, context)
             context.restoreGState()
-            if showsInvisibles { drawInvisibles(in: run, row: row) }
+            if showsInvisibles { drawInvisibles(in: run, row: row, visibleX: visibleX) }
 
             if isActive, selection.length == 0, lines.contains(model.lineIndex.line(containing: selection.location)),
                model.lineIndex.line(containing: selection.location) == line {
@@ -181,9 +181,13 @@ final class LargeTextView: NSView, NSMenuItemValidation {
     }
 
     /// Marks over the typeset part of the line, and its line end when shown.
-    private func drawInvisibles(in run: LineRun, row: NSRect) {
+    private func drawInvisibles(in run: LineRun, row: NSRect, visibleX: Range<CGFloat>) {
         let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.tertiaryLabelColor]
-        for column in run.window {
+        // A fixed-pitch grid: only the columns in the dirty rect, plus a little slack.
+        let first = Int((visibleX.lowerBound - layout.inset.width) / layout.charWidth) - 2
+        let last = Int((visibleX.upperBound - layout.inset.width) / layout.charWidth) + 2
+        let columns = run.window.clamped(to: max(first, 0)..<max(last, 0))
+        for column in columns {
             let offset = run.content.location + column
             guard let symbol = Invisibles.symbol(for: text.character(at: offset)) else { continue }
             (symbol as NSString).draw(at: NSPoint(x: run.x(forOffset: offset), y: row.minY), withAttributes: attributes)

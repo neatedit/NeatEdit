@@ -32,7 +32,8 @@ public struct LineEdit: Equatable, Sendable {
 
     public static func moveUp(in text: NSString, selection: NSRange) -> LineEdit? {
         let block = Block(text, selection)
-        guard block.start > 0 else { return nil }
+        // The empty "line" after a final line break isn't one to move.
+        guard block.start > 0, block.start < text.length else { return nil }
         let above = Block(text, NSRange(location: block.start - 1, length: 0))
         return LineEdit(range: NSRange(location: above.start, length: block.end - above.start),
                         replacement: block.body + above.terminator + above.body + block.terminator,

@@ -71,6 +71,7 @@ struct LineEditTests {
         #expect(run("one\ntwo", at(5), LineEdit.moveDown) == nil)
         #expect(run("one\ntwo\n", at(5), LineEdit.moveDown) == nil)
         #expect(run("", at(0), LineEdit.moveDown) == nil)
+        #expect(run("a\nb\n", at(4), LineEdit.moveUp) == nil, "keeps the final line break")
     }
 
     @Test func crlfLinesStayWhole() {

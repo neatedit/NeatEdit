@@ -62,8 +62,8 @@ enum MainMenu {
             item("Select All", #selector(NSText.selectAll(_:)), "a"),
             .separator(),
             item("Duplicate Line", #selector(PlainTextView.duplicateLine(_:)), "d"),
-            item("Move Line Up", #selector(PlainTextView.moveLineUp(_:)), arrow(NSUpArrowFunctionKey), .option),
-            item("Move Line Down", #selector(PlainTextView.moveLineDown(_:)), arrow(NSDownArrowFunctionKey), .option),
+            item("Move Line Up", #selector(NSTextView.moveLineUp(_:)), arrow(NSUpArrowFunctionKey), .option),
+            item("Move Line Down", #selector(NSTextView.moveLineDown(_:)), arrow(NSDownArrowFunctionKey), .option),
             .separator(),
             submenu("Find", [
                 find("Find…", .showFindInterface, "f"),

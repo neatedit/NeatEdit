@@ -62,6 +62,19 @@ final class LineCommandTests: XCTestCase {
         _ = window
     }
 
+    /// In a find field or a sheet ⌥↑ / ⌥↓ still go to the paragraph start / end.
+    func testOtherTextViewsKeepOptionArrows() throws {
+        let field = NSTextView()
+        field.isFieldEditor = true
+        field.string = "hello world"
+        field.setSelectedRange(NSRange(location: 5, length: 0))
+        XCTAssertTrue(field.tryToPerform(try XCTUnwrap(menuItem("Move Line Up").action), with: nil))
+        XCTAssertEqual(field.selectedRange(), NSRange(location: 0, length: 0))
+        XCTAssertTrue(field.tryToPerform(try XCTUnwrap(menuItem("Move Line Down").action), with: nil))
+        XCTAssertEqual(field.selectedRange(), NSRange(location: 11, length: 0))
+        XCTAssertEqual(field.string, "hello world")
+    }
+
     func testReadOnlyViewDoesNothing() throws {
         let (controller, window) = editor("a\nb")
         controller.textView.isEditable = false
