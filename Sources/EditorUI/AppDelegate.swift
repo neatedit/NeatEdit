@@ -61,6 +61,10 @@ enum MainMenu {
             item("Delete", #selector(NSText.delete(_:))),
             item("Select All", #selector(NSText.selectAll(_:)), "a"),
             .separator(),
+            item("Duplicate Line", #selector(PlainTextView.duplicateLine(_:)), "d"),
+            item("Move Line Up", #selector(PlainTextView.moveLineUp(_:)), arrow(NSUpArrowFunctionKey), .option),
+            item("Move Line Down", #selector(PlainTextView.moveLineDown(_:)), arrow(NSDownArrowFunctionKey), .option),
+            .separator(),
             submenu("Find", [
                 find("Find…", .showFindInterface, "f"),
                 find("Find and Replace…", .showReplaceInterface, "f", [.command, .option]),
@@ -95,6 +99,7 @@ enum MainMenu {
         main.addSubmenu("View", [
             item("Wrap Lines", #selector(EditorViewController.toggleWrapLines(_:)), "w", [.command, .option]),
             item("Show Line Numbers", #selector(EditorViewController.toggleLineNumbers(_:)), "l", [.command, .option]),
+            item("Show Invisibles", #selector(EditorViewController.toggleInvisibles(_:)), "i", [.command, .option]),
             .separator(),
             item("Bigger", #selector(EditorViewController.makeTextBigger(_:)), "+"),
             item("Smaller", #selector(EditorViewController.makeTextSmaller(_:)), "-"),

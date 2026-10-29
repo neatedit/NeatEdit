@@ -12,6 +12,9 @@ final class LargeTextView: NSView, NSMenuItemValidation {
     private(set) var selection = NSRange(location: 0, length: 0)
     var onSelectionChange: (() -> Void)?
     weak var findController: FindController?
+    var showsInvisibles = Preferences.showsInvisibles {
+        didSet { if showsInvisibles != oldValue { needsDisplay = true } }
+    }
 
     private var font: NSFont
     private var anchor = NSRange(location: 0, length: 0)
@@ -167,12 +170,27 @@ final class LargeTextView: NSView, NSMenuItemValidation {
             context.textPosition = CGPoint(x: run.originX, y: row.minY + font.ascender + (row.height - font.ascender + font.descender) / 2)
             CTLineDraw(run.line, context)
             context.restoreGState()
+            if showsInvisibles { drawInvisibles(in: run, row: row) }
 
             if isActive, selection.length == 0, lines.contains(model.lineIndex.line(containing: selection.location)),
                model.lineIndex.line(containing: selection.location) == line {
                 NSColor.textInsertionPointColor.setFill()
                 NSRect(x: run.x(forOffset: selection.location), y: row.minY, width: 1, height: row.height).fill()
             }
+        }
+    }
+
+    /// Marks over the typeset part of the line, and its line end when shown.
+    private func drawInvisibles(in run: LineRun, row: NSRect) {
+        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.tertiaryLabelColor]
+        for column in run.window {
+            let offset = run.content.location + column
+            guard let symbol = Invisibles.symbol(for: text.character(at: offset)) else { continue }
+            (symbol as NSString).draw(at: NSPoint(x: run.x(forOffset: offset), y: row.minY), withAttributes: attributes)
+        }
+        let end = NSMaxRange(run.content)
+        if end < text.length, run.window.upperBound == run.content.length {
+            (Invisibles.lineEnd as NSString).draw(at: NSPoint(x: run.x(forOffset: end), y: row.minY), withAttributes: attributes)
         }
     }
 
