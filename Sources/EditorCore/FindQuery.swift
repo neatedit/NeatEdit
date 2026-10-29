@@ -177,12 +177,20 @@ public struct FindQuery {
         return found
     }
 
+    /// Searches growing windows that end at the end of `range`, so finding the
+    /// previous match costs about the distance to it, not to the scope start
+    /// (seconds in a 500 MB log).
     private func last(in text: NSString, range: NSRange, excluding selection: NSRange) -> NSTextCheckingResult? {
-        var found: NSTextCheckingResult?
-        forEachMatch(in: text, range: range) { result in
-            if result.range != selection { found = result }
-            return true
+        var window = 64 * 1024
+        while true {
+            let start = max(range.location, range.upperBound - window)
+            var found: NSTextCheckingResult?
+            forEachMatch(in: text, range: NSRange(location: start, length: range.upperBound - start)) { result in
+                if result.range != selection { found = result }
+                return true
+            }
+            if found != nil || start == range.location { return found }
+            window *= 4
         }
-        return found
     }
 }

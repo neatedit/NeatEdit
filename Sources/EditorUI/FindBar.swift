@@ -30,10 +30,11 @@ final class FindBar: NSView {
     var showsReplace = true {
         didSet {
             replaceRow?.isHidden = !showsReplace
-            replaceRow?.arrangedSubviews.forEach { $0.isHidden = !showsReplace }
-            findField.nextKeyView = showsReplace ? replaceField : findField
+            findField.nextKeyView = showsReplace ? replaceField : nil
         }
     }
+
+    var isShowingReplace: Bool { replaceRow?.isHidden == false }
 
     init() {
         super.init(frame: NSRect(x: 0, y: 0, width: 600, height: 62))
@@ -201,7 +202,10 @@ final class FindBar: NSView {
 @MainActor
 protocol FindTarget: NSView {
     /// The text as it is now, safe to search (not re-bridged per match).
+    /// May copy the whole document: take it once per search.
     var findText: NSString { get }
+    var findLength: Int { get }
+    func findSubstring(_ range: NSRange) -> String
     var findSelection: NSRange { get }
     /// Selects and scrolls to a match (or just moves the caret).
     func selectFound(_ range: NSRange, indicate: Bool)
@@ -220,6 +224,8 @@ extension FindTarget {
 extension PlainTextView: FindTarget {
     /// An immutable copy, so regex matching doesn't re-bridge the live storage.
     var findText: NSString { (textStorage?.mutableString.copy() as? NSString) ?? "" }
+    var findLength: Int { textStorage?.length ?? 0 }
+    func findSubstring(_ range: NSRange) -> String { textStorage?.attributedSubstring(from: range).string ?? "" }
     var findSelection: NSRange { selectedRange() }
     var canReplaceFound: Bool { isEditable }
 
@@ -289,7 +295,7 @@ final class FindController: NSObject {
             self, selector: #selector(textDidChange), name: NSText.didChangeNotification, object: textView)
     }
 
-    private var isLarge: Bool { textView.findText.length > EditorViewController.largeDocumentLimit }
+    private var isLarge: Bool { textView.findLength > EditorViewController.largeDocumentLimit }
 
     // MARK: Actions
 
@@ -300,8 +306,8 @@ final class FindController: NSObject {
         case .hideFindInterface: close()
         case .nextMatch: find(forward: true)
         case .previousMatch: find(forward: false)
-        case .replace, .replaceAndFind: textView.canReplaceFound ? replace() : NSSound.beep()
-        case .replaceAll: textView.canReplaceFound ? replaceAll() : NSSound.beep()
+        case .replace, .replaceAndFind: replace()
+        case .replaceAll: replaceAll()
         case .setSearchString: useSelectionForFind()
         default: NSSound.beep()
         }
@@ -349,7 +355,7 @@ final class FindController: NSObject {
     private func useSelectionForFind() {
         let selection = textView.findSelection
         guard selection.length > 0 else { return NSSound.beep() }
-        bar.findField.tokens = [.text(textView.findText.substring(with: selection))]
+        bar.findField.tokens = [.text(textView.findSubstring(selection))]
         anchor = selection.location
         scheduleRefresh(jump: false)
     }
@@ -398,7 +404,8 @@ final class FindController: NSObject {
     }
 
     private func reportPosition(of range: NSRange?, query: FindQuery, text: NSString, scope: NSRange) {
-        guard !isLarge else { return bar.showStatus(range == nil ? "" : "Found") }
+        // Counting (and searching as you type) would scan the whole document.
+        guard !isLarge else { return bar.showStatus(range == nil ? "Return to find" : "Found") }
         let total = query.count(in: text, scope: scope)
         guard let range, total > 0 else {
             return bar.showStatus(total == 0 ? "Not found" : total == 1 ? "1 match" : "\(total) matches")
@@ -410,7 +417,7 @@ final class FindController: NSObject {
     // MARK: Replacing
 
     private func replace() {
-        guard let query = query() else { return NSSound.beep() }
+        guard textView.canReplaceFound, let query = query() else { return NSSound.beep() }
         let text = self.text
         let scope = scope(in: text)
         let selection = textView.findSelection
@@ -433,7 +440,7 @@ final class FindController: NSObject {
     }
 
     private func replaceAll() {
-        guard let query = query() else { return NSSound.beep() }
+        guard textView.canReplaceFound, let query = query() else { return NSSound.beep() }
         let text = self.text
         let scope = scope(in: text)
         let edits = query.replaceAll(in: text, scope: scope)
@@ -462,6 +469,14 @@ final class FindController: NSObject {
     }
 
     // MARK: Live updates
+
+    /// The text was swapped for a different one (the viewer reloaded its
+    /// file): old offsets mean nothing now.
+    func textWasReplaced() {
+        selectionScope = nil
+        anchor = 0
+        textDidChange()
+    }
 
     /// The text changed (the editor posts NSText's notification; the viewer calls this).
     @objc func textDidChange() {

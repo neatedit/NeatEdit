@@ -413,7 +413,6 @@ public final class TextDocument: NSDocument {
         guard case .appended(let text) = change, let model else { return }
         // One model behind every view: append once, tell each view.
         let views = windowControllers.compactMap { $0.contentViewController as? LargeFileViewController }
-        views.forEach { $0.textWillGrow() }
         let oldLength = model.storage.length
         model.append(text)
         views.forEach { $0.textDidGrow(from: oldLength) }

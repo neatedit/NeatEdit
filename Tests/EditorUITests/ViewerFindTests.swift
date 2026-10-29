@@ -7,15 +7,20 @@ import EditorCore
 @MainActor
 final class ViewerFindTests: XCTestCase {
     private var savedThreshold = 0
+    private var savedLargeLimit = 0
     private var document: TextDocument!
 
+    /// Small files take the paths real viewer files (20 MB and up) take.
     override func setUp() {
         savedThreshold = TextDocument.largeFileThreshold
+        savedLargeLimit = EditorViewController.largeDocumentLimit
         TextDocument.largeFileThreshold = 10
+        EditorViewController.largeDocumentLimit = 10
     }
 
     override func tearDown() {
         TextDocument.largeFileThreshold = savedThreshold
+        EditorViewController.largeDocumentLimit = savedLargeLimit
     }
 
     private func open(_ text: String) throws -> LargeFileViewController {
@@ -40,7 +45,8 @@ final class ViewerFindTests: XCTestCase {
         XCTAssertTrue(controller.textView.validateMenuItem(menuItem(.showFindInterface)))
         controller.textView.performFindPanelAction(menuItem(.showFindInterface))
         XCTAssertTrue(find.isVisible)
-        XCTAssertTrue(find.bar.replaceField.box.isHidden)
+        XCTAssertFalse(find.bar.isShowingReplace)
+        XCTAssertNil(find.bar.findField.nextKeyView, "Tab must be able to leave the find field")
         XCTAssertFalse(controller.textView.validateMenuItem(menuItem(.replaceAll)))
 
         find.bar.findField.cancelOperation(nil)
@@ -83,5 +89,30 @@ final class ViewerFindTests: XCTestCase {
         find.perform(.showFindInterface)
         find.perform(.nextMatch)
         XCTAssertEqual(controller.textView.selection, NSRange(location: 8, length: 3))
+    }
+
+    func testTypingSaysToPressReturn() throws {
+        let controller = try open("alpha beta gamma")
+        let find = controller.findController
+        find.perform(.showFindInterface)
+        find.bar.findField.insertText("beta", replacementRange: find.bar.findField.selectedRange())
+        drainMainQueue()
+        XCTAssertEqual(find.bar.statusLabel.stringValue, "Return to find")
+        XCTAssertEqual(controller.textView.selection, NSRange(location: 0, length: 0))
+        find.perform(.nextMatch)
+        XCTAssertEqual(controller.textView.selection, NSRange(location: 6, length: 4))
+        XCTAssertEqual(find.bar.statusLabel.stringValue, "Found")
+    }
+
+    func testReloadDropsTheOldInSelectionScope() throws {
+        let controller = try open("cat cat cat cat cat\n")
+        let find = controller.findController
+        controller.textView.setSelection(NSRange(location: 12, length: 7))
+        find.perform(.showFindInterface)
+        find.inSelection = true
+        find.bar.findField.tokens = [.text("dog")]
+        document.diskDidChange(Data("dog\n".utf8))
+        find.perform(.nextMatch)
+        XCTAssertEqual(controller.textView.selection, NSRange(location: 0, length: 3))
     }
 }

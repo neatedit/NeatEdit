@@ -402,6 +402,8 @@ final class LargeTextView: NSView, NSMenuItemValidation {
 
 extension LargeTextView: FindTarget {
     var findText: NSString { text }
+    var findLength: Int { model.storage.length }
+    func findSubstring(_ range: NSRange) -> String { text.substring(with: range) }
     var findSelection: NSRange { selection }
     var canReplaceFound: Bool { false }
 
