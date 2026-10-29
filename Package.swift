@@ -4,6 +4,8 @@ import PackageDescription
 let package = Package(
     name: "NeatEdit",
     platforms: [.macOS(.v14)],
+    // For NeatEdit.xcodeproj (project.yml), which builds the App Store app.
+    products: [.library(name: "EditorUI", targets: ["EditorUI"])],
     targets: [
         .target(name: "EditorCore"),
         .target(

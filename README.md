@@ -25,6 +25,13 @@ swift scripts/make-icon.swift # regenerate Resources/AppIcon.icns
 swift test -c release -Xswiftc -enable-testing --filter testLargeFile   # 200 MB load benchmark
 ```
 
+The Mac App Store build is sandboxed and signed with the GTD team (`com.gtd.NeatEdit`). `project.yml` wraps the package in an Xcode project; bump `CFBundleVersion` in `Resources/Info.plist`, then:
+
+```sh
+./scripts/app-store.sh        # xcodegen, archive, upload to App Store Connect
+./scripts/app-store.sh export # same, but only writes build/export/NeatEdit.pkg
+```
+
 ## Install
 
 ```sh

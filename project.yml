@@ -1,0 +1,45 @@
+# The App Store build: `xcodegen` makes NeatEdit.xcodeproj from this.
+# The code lives in the Swift package; this only adds signing, the
+# sandbox and archiving. scripts/build-app.sh is the plain local build.
+name: NeatEdit
+options:
+  deploymentTarget:
+    macOS: "14.0"
+packages:
+  NeatEditKit:
+    path: .
+targets:
+  NeatEditApp:
+    type: application
+    platform: macOS
+    sources:
+      - Sources/NeatEdit
+      - path: Resources/AppIcon.icns
+        buildPhase: resources
+      - path: Resources/PrivacyInfo.xcprivacy
+        buildPhase: resources
+      - path: scripts/neatedit
+        buildPhase: resources
+    dependencies:
+      - package: NeatEditKit
+        product: EditorUI
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gtd.NeatEdit
+        PRODUCT_NAME: NeatEdit
+        INFOPLIST_FILE: Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Resources/NeatEdit.entitlements
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: CBBC6T33XY
+        ENABLE_HARDENED_RUNTIME: YES
+        SWIFT_VERSION: "6.0"
+        ARCHS: "$(ARCHS_STANDARD)"
+        ONLY_ACTIVE_ARCH: NO
+        GENERATE_INFOPLIST_FILE: NO
+schemes:
+  NeatEditApp:
+    build:
+      targets:
+        NeatEditApp: all
+    archive:
+      config: Release
