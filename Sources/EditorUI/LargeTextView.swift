@@ -298,8 +298,15 @@ final class LargeTextView: NSView, NSMenuItemValidation {
     override func moveToEndOfLineAndModifySelection(_ sender: Any?) { move(extending: true) { self.navigator.lineEnd(of: $0) } }
     override func moveToLeftEndOfLineAndModifySelection(_ sender: Any?) { moveToBeginningOfLineAndModifySelection(sender) }
     override func moveToRightEndOfLineAndModifySelection(_ sender: Any?) { moveToEndOfLineAndModifySelection(sender) }
-    override func moveToBeginningOfDocument(_ sender: Any?) { move(extending: false) { _ in 0 } }
-    override func moveToEndOfDocument(_ sender: Any?) { move(extending: false) { _ in self.text.length } }
+    // All the way to the edge, past the inset, as NSTextView does.
+    override func moveToBeginningOfDocument(_ sender: Any?) {
+        move(extending: false) { _ in 0 }
+        scrollToBeginningOfDocument(sender)
+    }
+    override func moveToEndOfDocument(_ sender: Any?) {
+        move(extending: false) { _ in self.text.length }
+        scrollToEndOfDocument(sender)
+    }
     override func moveToBeginningOfDocumentAndModifySelection(_ sender: Any?) { move(extending: true) { _ in 0 } }
     override func moveToEndOfDocumentAndModifySelection(_ sender: Any?) { move(extending: true) { _ in self.text.length } }
     override func moveWordLeft(_ sender: Any?) { move(extending: false) { self.wordLeft(from: $0) } }

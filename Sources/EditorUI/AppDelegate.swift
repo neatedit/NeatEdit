@@ -74,6 +74,8 @@ enum MainMenu {
                 item("Jump to Selection", #selector(NSTextView.centerSelectionInVisibleArea(_:)), "j"),
             ]),
             item("Go to Line…", #selector(EditorViewController.goToLine(_:)), "l"),
+            item("Go to Beginning", #selector(NSResponder.moveToBeginningOfDocument(_:)), arrow(NSUpArrowFunctionKey)),
+            item("Go to End", #selector(NSResponder.moveToEndOfDocument(_:)), arrow(NSDownArrowFunctionKey)),
         ])
 
         // Each acts on the selection, or on the whole text when nothing is selected.
@@ -126,6 +128,10 @@ enum MainMenu {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
         item.keyEquivalentModifierMask = modifiers
         return item
+    }
+
+    private static func arrow(_ key: Int) -> String {
+        String(UnicodeScalar(UInt16(key))!)
     }
 
     private static func find(
