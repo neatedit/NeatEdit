@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "SimpleTextEdit",
+    name: "NeatEdit",
     platforms: [.macOS(.v14)],
     targets: [
         .target(name: "EditorCore"),
@@ -12,7 +12,7 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .executableTarget(
-            name: "SimpleTextEdit",
+            name: "NeatEdit",
             dependencies: ["EditorUI"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),

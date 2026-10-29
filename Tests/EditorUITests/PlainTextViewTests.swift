@@ -5,7 +5,7 @@ import XCTest
 @MainActor
 final class PlainTextViewTests: XCTestCase {
     private func makePasteboard(plain: String, rtf: String) -> NSPasteboard {
-        let pb = NSPasteboard(name: NSPasteboard.Name("SimpleTextEditTests-\(UUID().uuidString)"))
+        let pb = NSPasteboard(name: NSPasteboard.Name("NeatEditTests-\(UUID().uuidString)"))
         pb.clearContents()
         let attributed = NSAttributedString(string: rtf, attributes: [.font: NSFont.boldSystemFont(ofSize: 30)])
         let rtfData = attributed.rtf(from: NSRange(location: 0, length: attributed.length), documentAttributes: [:])!

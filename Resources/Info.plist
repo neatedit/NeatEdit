@@ -3,11 +3,12 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleName</key>
-	<string>SimpleTextEdit</string>
+	<string>NeatEdit</string>
 	<key>CFBundleDisplayName</key>
-	<string>SimpleTextEdit</string>
+	<string>NeatEdit</string>
 	<key>CFBundleExecutable</key>
-	<string>SimpleTextEdit</string>
+	<string>NeatEdit</string>
+	<!-- The old name stays here: preferences and restored tabs are kept under it. -->
 	<key>CFBundleIdentifier</key>
 	<string>com.ex.SimpleTextEdit</string>
 	<key>CFBundleIconFile</key>

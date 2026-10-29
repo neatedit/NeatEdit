@@ -1,0 +1,30 @@
+#!/bin/sh
+# neatedit — open files in NeatEdit from the terminal.
+#   neatedit                 bring NeatEdit to the front
+#   neatedit a.txt b.log     open files (a missing file is created empty)
+#   cmd | neatedit -         open what comes in on stdin
+set -eu
+BUNDLE=com.ex.SimpleTextEdit
+
+if [ $# -eq 0 ]; then
+    exec open -b "$BUNDLE"
+fi
+
+for arg in "$@"; do
+    case "$arg" in
+        -h|--help)
+            sed -n '2,5s/^# \{0,1\}//p' "$0"
+            exit 0 ;;
+    esac
+done
+
+for arg in "$@"; do
+    if [ "$arg" = "-" ]; then
+        tmp="$(mktemp -t neatedit).txt"
+        cat > "$tmp"
+        arg=$tmp
+    elif [ ! -e "$arg" ]; then
+        : > "$arg"
+    fi
+    open -b "$BUNDLE" "$arg"
+done
