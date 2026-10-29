@@ -4,7 +4,7 @@
 #   neatedit a.txt b.log     open files (a missing file is created empty)
 #   cmd | neatedit -         open what comes in on stdin
 set -eu
-BUNDLE=com.ex.SimpleTextEdit
+BUNDLE=com.gtd.NeatEdit
 
 if [ $# -eq 0 ]; then
     exec open -b "$BUNDLE"
