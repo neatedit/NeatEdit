@@ -29,8 +29,8 @@ public final class TextDocument: NSDocument {
     /// changes are diffed against. Not kept for the read-only viewer.
     private(set) var baseText = ""
     private var diskCheck: DispatchWorkItem?
-    /// The viewer watches its file directly: file presenter news arrives
-    /// late (~1 s) and merged, too slow to follow a log.
+    /// Tabs watch their file directly: file presenter news arrives late
+    /// (~1 s) and merged, too slow to follow a log.
     private var appendWatcher: DispatchSourceFileSystemObject?
     /// Modification date of the disk version behind `externalState`.
     private var pendingDiskDate: Date?
@@ -46,8 +46,9 @@ public final class TextDocument: NSDocument {
     private var stateEpoch = 0
     /// Set when the tab is built; see `isViewer`.
     private var opensInViewer: Bool?
-    /// How far the viewer has read the file, so appends are read alone.
-    /// Nil for encodings it can't follow (the whole file is read again).
+    /// How far the tab has read the file, so appends are read alone. Nil
+    /// for encodings it can't follow, and in an editor tab after a save until
+    /// the file is read again (the whole file is read instead).
     private var tail: FileTail?
     /// From `read`, possibly on a background thread; taken with `prepared`.
     private var preparedTail: FileTail?
@@ -106,6 +107,8 @@ public final class TextDocument: NSDocument {
             if error == nil, saveOperation != .saveToOperation, let self {
                 self.diskReadStamp += 1
                 if let snapshot, !self.isViewer { self.baseText = snapshot }
+                // The file now holds our text, possibly ending like the old one.
+                if !self.isViewer { self.tail = nil }
                 self.savedOverExternalState()
             }
             completionHandler(error)
@@ -175,7 +178,6 @@ public final class TextDocument: NSDocument {
         let window = NSWindow(contentViewController: controller)
         if controller is LargeFileViewController {
             window.subtitle = "Read-only (large file)"
-            watchForAppends()
         }
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.tabbingMode = .preferred
@@ -185,6 +187,16 @@ public final class TextDocument: NSDocument {
         windowController.windowFrameAutosaveName = "EditorWindow"
         windowController.shouldCascadeWindows = true
         addWindowController(windowController)
+        watchForAppends()
+    }
+
+    /// Saved under a new name: follow that file from its next read.
+    override public var fileURL: URL? {
+        didSet {
+            guard !Self.sameFile(oldValue, fileURL), !windowControllers.isEmpty else { return }
+            tail = nil
+            watchForAppends()
+        }
     }
 
     /// New text gets ".txt"; files that already exist keep whatever name they have.
@@ -258,7 +270,7 @@ public final class TextDocument: NSDocument {
         var normalized: String
         /// Ready-made model for the viewer, which just swaps it in.
         var prepared: EditorModel.Prepared?
-        /// Where the viewer resumes following the file.
+        /// Where the tab resumes following the file.
         var tail: FileTail?
         var date: Date?
 
@@ -268,7 +280,7 @@ public final class TextDocument: NSDocument {
                 file: file,
                 normalized: forViewer ? "" : TextDocument.normalized(file.text),
                 prepared: forViewer ? EditorModel.prepare(file) : nil,
-                tail: forViewer ? FileTail(data: data, encoding: file.encoding) : nil,
+                tail: FileTail(data: data, encoding: file.encoding),
                 date: date)
         }
     }
@@ -276,46 +288,57 @@ public final class TextDocument: NSDocument {
     /// Coalesces bursts (a log written every few ms), then reads and decodes
     /// the file off the main thread.
     private func scheduleDiskCheck() {
-        // The viewer throttles instead: a log written every few ms would keep
-        // postponing a debounced check forever. One read at a time; news that
-        // arrives meanwhile asks for one more afterwards.
+        // A tab following the file throttles instead: a log written every few
+        // ms would keep postponing a debounced check forever. One read at a
+        // time; news that arrives meanwhile asks for one more afterwards.
         let forViewer = isViewer
-        if forViewer {
-            guard !viewerReadBusy else { viewerRecheck = true; return }
-            viewerReadBusy = true
+        let following = followsDisk
+        if following {
+            guard !followReadBusy else { followRecheck = true; return }
+            followReadBusy = true
         } else {
             diskCheck?.cancel()
         }
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
-            guard let url = self.fileURL, let model = self.model else { return self.viewerReadDone() }
+            guard let url = self.fileURL, let model = self.model else { return following ? self.followReadDone() : () }
             let stamp = self.diskReadStamp
             let encoding = model.file.encoding
-            let tail = forViewer ? self.tail : nil
+            let tail = following && self.followsDisk ? self.tail : nil
             DispatchQueue.global(qos: .userInitiated).async {
                 let outcome = Self.readDisk(url, presenter: self, tail: tail, preferring: encoding, forViewer: forViewer)
                 DispatchQueue.main.async {
                     switch outcome {
-                    case .appended(let followed, let change, let date): self.tailReadFinished(followed, change, from: tail!, date: date)
+                    case .appended(let followed, let change, let date):
+                        self.tailReadFinished(followed, change, from: tail!, date: date, stamp: stamp)
                     case .read(let read): self.diskReadFinished(read, stamp: stamp)
                     case .nothing: break
                     }
-                    if forViewer { self.viewerReadDone() }
+                    if following { self.followReadDone() }
                 }
             }
         }
-        diskCheck = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + (forViewer ? 0.1 : 0.3), execute: work)
+        if !following { diskCheck = work }
+        DispatchQueue.main.asyncAfter(deadline: .now() + (following ? 0.1 : 0.3), execute: work)
     }
 
-    private var viewerReadBusy = false
-    private var viewerRecheck = false
+    private var followReadBusy = false
+    private var followRecheck = false
 
-    private func viewerReadDone() {
-        viewerReadBusy = false
-        guard viewerRecheck else { return }
-        viewerRecheck = false
+    private func followReadDone() {
+        followReadBusy = false
+        guard followRecheck else { return }
+        followRecheck = false
         scheduleDiskCheck()
+    }
+
+    /// The viewer, or an editor tab showing exactly what's on disk: new text
+    /// at the end of the file is added in place. An edited tab reviews
+    /// changes instead.
+    private var followsDisk: Bool {
+        if isViewer { return true }
+        guard !isDocumentEdited, saveInFlight == 0, case .none = externalState else { return false }
+        return true
     }
 
     private enum DiskOutcome {
@@ -405,17 +428,25 @@ public final class TextDocument: NSDocument {
         return result
     }
 
-    private func tailReadFinished(_ followed: FileTail, _ change: FileTail.Change, from start: FileTail, date: Date?) {
-        // Another read got there first (or the file was reloaded): look again.
-        guard isViewer, tail?.byteCount == start.byteCount else { return scheduleDiskCheck() }
+    private func tailReadFinished(_ followed: FileTail, _ change: FileTail.Change, from start: FileTail, date: Date?, stamp: Int) {
+        // Another read got there first, the file was reloaded or saved, or
+        // the tab was edited meanwhile: look again.
+        guard followsDisk, stamp == diskReadStamp, tail?.byteCount == start.byteCount else { return scheduleDiskCheck() }
         tail = followed
         fileModificationDate = date
         guard case .appended(let text) = change, let model else { return }
-        // One model behind every view: append once, tell each view.
-        let views = windowControllers.compactMap { $0.contentViewController as? LargeFileViewController }
+        // One model behind every view: append once, tell each view. Not an
+        // undoable edit: the tab keeps showing exactly what's on disk.
+        let views = windowControllers.compactMap { $0.contentViewController as? TailFollowing }
+        let atBottom = views.map(\.isScrolledToBottom)
         let oldLength = model.storage.length
+        let endedWithCR = oldLength > 0 && (model.storage.string as NSString).character(at: oldLength - 1) == 0x0D
         model.append(text)
-        views.forEach { $0.textDidGrow(from: oldLength) }
+        if !isViewer {
+            // A CR may meet its LF across two writes: normalize those whole.
+            baseText = endedWithCR || text.contains("\r") ? Self.normalized(model.storage.string) : baseText + text
+        }
+        for (view, follow) in zip(views, atBottom) { view.textDidGrow(from: oldLength, follow: follow) }
     }
 
     /// A background read finished. If we saved since it started, it may
@@ -458,6 +489,7 @@ public final class TextDocument: NSDocument {
             if !same {
                 reloadClean(from: disk)
             }
+            tail = read.tail
             baseText = read.normalized
             fileModificationDate = read.date
             resetExternalState()
