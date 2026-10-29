@@ -17,6 +17,11 @@ public final class EditorModel: NSObject, NSTextStorageDelegate {
     private var totalCharacters: CharacterCount?
     private var countGeneration = 0
     private var countWork: DispatchWorkItem?
+    /// Characters appended since the background count took its snapshot, so
+    /// a followed log doesn't restart (and starve) it. Nil when no count is
+    /// running, or something other than an append changed the text.
+    private var appendedDuringCount: Int?
+    private var isAppending = false
 
     /// Documents up to this many UTF-16 units are counted synchronously.
     static let syncCountLimit = 1_000_000
@@ -67,7 +72,29 @@ public final class EditorModel: NSObject, NSTextStorageDelegate {
     ) {
         guard editedMask.contains(.editedCharacters) else { return }
         lineIndex.update(in: textStorage.string as NSString, editedRange: editedRange, changeInLength: delta)
+        guard !isAppending else { return }
         totalCharacters = nil
+        appendedDuringCount = nil
+    }
+
+    /// Adds text at the end (a log being written), updating the totals
+    /// without counting the whole document again.
+    public func append(_ text: String) {
+        guard !text.isEmpty else { return }
+        let length = storage.length
+        // The last character may absorb the start of the new text (CR + LF,
+        // an accent, half an emoji): count them together.
+        let current = storage.string as NSString
+        let last = length > 0 ? current.substring(with: current.rangeOfComposedCharacterSequence(at: length - 1)) : ""
+        let added = (last + text).count - (last.isEmpty ? 0 : 1)
+        isAppending = true
+        storage.append(NSAttributedString(string: text, attributes: [.font: Preferences.font]))
+        isAppending = false
+        if let total = totalCharacters {
+            totalCharacters = CharacterCount(value: total.value + added, isApproximate: total.isApproximate)
+        } else if let counted = appendedDuringCount {
+            appendedDuringCount = counted + added
+        }
     }
 
     public func status(selectedRange: NSRange) -> StatusLine {
@@ -93,6 +120,8 @@ public final class EditorModel: NSObject, NSTextStorageDelegate {
             totalCharacters = count
             return count
         }
+        // A count is already on its way and appends are being added to it.
+        if appendedDuringCount != nil { return nil }
         scheduleBackgroundCount()
         return nil
     }
@@ -101,14 +130,18 @@ public final class EditorModel: NSObject, NSTextStorageDelegate {
         countWork?.cancel()
         countGeneration += 1
         let generation = countGeneration
+        appendedDuringCount = 0
         let work = DispatchWorkItem { [weak self] in
-            guard let self, generation == self.countGeneration else { return }
+            guard let self, generation == self.countGeneration, self.appendedDuringCount != nil else { return }
+            // Appends until now are in the snapshot; later ones are added on top.
+            self.appendedDuringCount = 0
             let snapshot = (self.storage.string as NSString).copy() as! NSString
             DispatchQueue.global(qos: .utility).async {
                 let count = (snapshot as String).count
                 DispatchQueue.main.async {
-                    guard generation == self.countGeneration else { return }
-                    self.totalCharacters = CharacterCount(value: count, isApproximate: false)
+                    guard generation == self.countGeneration, let appended = self.appendedDuringCount else { return }
+                    self.appendedDuringCount = nil
+                    self.totalCharacters = CharacterCount(value: count + appended, isApproximate: false)
                     self.onTotalsChanged?()
                 }
             }

@@ -54,6 +54,14 @@ final class LargeFileViewController: NSViewController, DocumentContent, NSMenuIt
     }
 
     func reload(from file: TextFile) { replaceModel(EditorModel(file: file)) }
+
+    /// The file grew: the document appends to the model between these two.
+    func textWillGrow() { textFinder.noteClientStringWillChange() }
+
+    func textDidGrow(from oldLength: Int) {
+        textView.textDidGrow(from: oldLength)
+        updateStatus()
+    }
     func replaceText(with text: String, actionName: String) {}
     func externalStateDidChange(_ state: TextDocument.ExternalState) {}
 

@@ -29,6 +29,9 @@ public final class TextDocument: NSDocument {
     /// changes are diffed against. Not kept for the read-only viewer.
     private(set) var baseText = ""
     private var diskCheck: DispatchWorkItem?
+    /// The viewer watches its file directly: file presenter news arrives
+    /// late (~1 s) and merged, too slow to follow a log.
+    private var appendWatcher: DispatchSourceFileSystemObject?
     /// Modification date of the disk version behind `externalState`.
     private var pendingDiskDate: Date?
     /// Bumped by every completed save: a disk read started before it may
@@ -43,6 +46,11 @@ public final class TextDocument: NSDocument {
     private var stateEpoch = 0
     /// Set when the tab is built; see `isViewer`.
     private var opensInViewer: Bool?
+    /// How far the viewer has read the file, so appends are read alone.
+    /// Nil for encodings it can't follow (the whole file is read again).
+    private var tail: FileTail?
+    /// From `read`, possibly on a background thread; taken with `prepared`.
+    private var preparedTail: FileTail?
 
     /// Documents longer than this (UTF-16 units, ~20 MB of text) open in the
     /// read-only viewer, which stays instant no matter the size.
@@ -55,7 +63,11 @@ public final class TextDocument: NSDocument {
 
     override public func read(from data: Data, ofType typeName: String) throws {
         let prepared = try EditorModel.prepare(data: data)
-        preparedLock.withLock { self.prepared = prepared }
+        let tail = FileTail(data: data, encoding: prepared.file.encoding)
+        preparedLock.withLock {
+            self.prepared = prepared
+            self.preparedTail = tail
+        }
         if model != nil {
             // Revert or external change: swap the text in the open tab.
             if Thread.isMainThread {
@@ -163,6 +175,7 @@ public final class TextDocument: NSDocument {
         let window = NSWindow(contentViewController: controller)
         if controller is LargeFileViewController {
             window.subtitle = "Read-only (large file)"
+            watchForAppends()
         }
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.tabbingMode = .preferred
@@ -191,8 +204,10 @@ public final class TextDocument: NSDocument {
     /// leaves the tab alone) when the bytes aren't valid in that encoding.
     func reopen(with encoding: String.Encoding) throws {
         guard let fileURL else { return }
-        let file = try TextFile(data: Data(contentsOf: fileURL), encoding: encoding)
+        let data = try Data(contentsOf: fileURL)
+        let file = try TextFile(data: data, encoding: encoding)
         install(EditorModel(file: file))
+        tail = FileTail(data: data, encoding: encoding)
         undoManager?.removeAllActions()
         updateChangeCount(.changeCleared)
         // The tab now shows the disk exactly: nothing is pending.
@@ -243,6 +258,8 @@ public final class TextDocument: NSDocument {
         var normalized: String
         /// Ready-made model for the viewer, which just swaps it in.
         var prepared: EditorModel.Prepared?
+        /// Where the viewer resumes following the file.
+        var tail: FileTail?
         var date: Date?
 
         static func make(_ data: Data, preferring encoding: String.Encoding, forViewer: Bool, date: Date?) -> DiskRead? {
@@ -251,6 +268,7 @@ public final class TextDocument: NSDocument {
                 file: file,
                 normalized: forViewer ? "" : TextDocument.normalized(file.text),
                 prepared: forViewer ? EditorModel.prepare(file) : nil,
+                tail: forViewer ? FileTail(data: data, encoding: file.encoding) : nil,
                 date: date)
         }
     }
@@ -258,28 +276,147 @@ public final class TextDocument: NSDocument {
     /// Coalesces bursts (a log written every few ms), then reads and decodes
     /// the file off the main thread.
     private func scheduleDiskCheck() {
-        diskCheck?.cancel()
+        // The viewer throttles instead: a log written every few ms would keep
+        // postponing a debounced check forever. One read at a time; news that
+        // arrives meanwhile asks for one more afterwards.
+        let forViewer = isViewer
+        if forViewer {
+            guard !viewerReadBusy else { viewerRecheck = true; return }
+            viewerReadBusy = true
+        } else {
+            diskCheck?.cancel()
+        }
         let work = DispatchWorkItem { [weak self] in
-            guard let self, let url = self.fileURL, let model = self.model else { return }
+            guard let self else { return }
+            guard let url = self.fileURL, let model = self.model else { return self.viewerReadDone() }
             let stamp = self.diskReadStamp
             let encoding = model.file.encoding
-            let forViewer = self.isViewer
+            let tail = forViewer ? self.tail : nil
             DispatchQueue.global(qos: .userInitiated).async {
-                var data: Data?
-                var date: Date?
-                NSFileCoordinator(filePresenter: self).coordinate(readingItemAt: url, options: .withoutChanges, error: nil) { url in
-                    data = try? Data(contentsOf: url)
-                    date = Self.modificationDate(of: url)
+                let outcome = Self.readDisk(url, presenter: self, tail: tail, preferring: encoding, forViewer: forViewer)
+                DispatchQueue.main.async {
+                    switch outcome {
+                    case .appended(let followed, let change, let date): self.tailReadFinished(followed, change, from: tail!, date: date)
+                    case .read(let read): self.diskReadFinished(read, stamp: stamp)
+                    case .nothing: break
+                    }
+                    if forViewer { self.viewerReadDone() }
                 }
-                // Unreadable but still there (permissions, a write in progress) is not "deleted".
-                if data == nil, FileManager.default.fileExists(atPath: url.path) { return }
-                let read = data.flatMap { DiskRead.make($0, preferring: encoding, forViewer: forViewer, date: date) }
-                if data != nil, read == nil { return }
-                DispatchQueue.main.async { self.diskReadFinished(read, stamp: stamp) }
             }
         }
         diskCheck = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + (forViewer ? 0.1 : 0.3), execute: work)
+    }
+
+    private var viewerReadBusy = false
+    private var viewerRecheck = false
+
+    private func viewerReadDone() {
+        viewerReadBusy = false
+        guard viewerRecheck else { return }
+        viewerRecheck = false
+        scheduleDiskCheck()
+    }
+
+    private enum DiskOutcome {
+        case appended(FileTail, FileTail.Change, Date?)
+        /// Nil: the file is gone.
+        case read(DiskRead?)
+        /// Unreadable or undecodable right now: wait for the next change.
+        case nothing
+    }
+
+    private nonisolated static func readDisk(
+        _ url: URL, presenter: NSFilePresenter, tail: FileTail?, preferring encoding: String.Encoding, forViewer: Bool
+    ) -> DiskOutcome {
+        // A followed log: read just what was added, if that's all that happened.
+        if let tail, let (followed, change, date) = readAppended(to: tail, at: url, presenter: presenter) {
+            return .appended(followed, change, date)
+        }
+        var data: Data?
+        var date: Date?
+        NSFileCoordinator(filePresenter: presenter).coordinate(readingItemAt: url, options: .withoutChanges, error: nil) { url in
+            data = try? Data(contentsOf: url)
+            date = modificationDate(of: url)
+        }
+        // Unreadable but still there (permissions, a write in progress) is not "deleted".
+        guard let data else { return FileManager.default.fileExists(atPath: url.path) ? .nothing : .read(nil) }
+        return DiskRead.make(data, preferring: encoding, forViewer: forViewer, date: date).map { .read($0) } ?? .nothing
+    }
+
+    private func watchForAppends() {
+        appendWatcher?.cancel()
+        appendWatcher = nil
+        guard let url = fileURL else { return }
+        let descriptor = open(url.path, O_EVTONLY)
+        guard descriptor >= 0 else { return }
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: descriptor, eventMask: [.write, .extend, .delete, .rename], queue: .main)
+        source.setEventHandler { [weak self, unowned source] in
+            guard let self else { return }
+            if !source.data.isDisjoint(with: [.delete, .rename]) {
+                // Replaced or moved (log rotation): watch whatever is at the path now.
+                source.cancel()
+                self.appendWatcher = nil
+                self.rewatch(attemptsLeft: 20)
+            }
+            self.scheduleDiskCheck()
+        }
+        source.setCancelHandler { Darwin.close(descriptor) }
+        source.resume()
+        appendWatcher = source
+    }
+
+    /// The file may take a while to come back (a rotator recreating it).
+    private func rewatch(attemptsLeft: Int) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self, self.appendWatcher == nil, !self.windowControllers.isEmpty else { return }
+            self.watchForAppends()
+            if self.appendWatcher == nil, attemptsLeft > 1 {
+                self.rewatch(attemptsLeft: attemptsLeft - 1)
+            } else if self.appendWatcher != nil {
+                self.scheduleDiskCheck()
+            }
+        }
+    }
+
+    override public func close() {
+        appendWatcher?.cancel()
+        appendWatcher = nil
+        super.close()
+    }
+
+    /// Nil when the file can't be read that way (gone, or rewritten).
+    private nonisolated static func readAppended(
+        to tail: FileTail, at url: URL, presenter: NSFilePresenter
+    ) -> (FileTail, FileTail.Change, Date?)? {
+        var result: (FileTail, FileTail.Change, Date?)?
+        NSFileCoordinator(filePresenter: presenter).coordinate(readingItemAt: url, options: .withoutChanges, error: nil) { url in
+            guard let handle = try? FileHandle(forReadingFrom: url) else { return }
+            defer { try? handle.close() }
+            var tail = tail
+            let change = try? tail.update(size: Int(handle.seekToEnd())) { range in
+                try handle.seek(toOffset: UInt64(range.lowerBound))
+                return try handle.read(upToCount: range.count) ?? Data()
+            }
+            guard let change, change != .rewritten else { return }
+            result = (tail, change, modificationDate(of: url))
+        }
+        return result
+    }
+
+    private func tailReadFinished(_ followed: FileTail, _ change: FileTail.Change, from start: FileTail, date: Date?) {
+        // Another read got there first (or the file was reloaded): look again.
+        guard isViewer, tail?.byteCount == start.byteCount else { return scheduleDiskCheck() }
+        tail = followed
+        fileModificationDate = date
+        guard case .appended(let text) = change, let model else { return }
+        // One model behind every view: append once, tell each view.
+        let views = windowControllers.compactMap { $0.contentViewController as? LargeFileViewController }
+        views.forEach { $0.textWillGrow() }
+        let oldLength = model.storage.length
+        model.append(text)
+        views.forEach { $0.textDidGrow(from: oldLength) }
     }
 
     /// A background read finished. If we saved since it started, it may
@@ -310,6 +447,7 @@ public final class TextDocument: NSDocument {
 
         if isViewer {
             install(read.prepared.map(EditorModel.init(prepared:)) ?? EditorModel(file: disk))
+            tail = read.tail
             fileModificationDate = read.date
             return
         }
@@ -520,6 +658,8 @@ public final class TextDocument: NSDocument {
         if let model { return model }
         let prepared = preparedLock.withLock { () -> EditorModel.Prepared? in
             defer { self.prepared = nil }
+            if self.prepared != nil { tail = preparedTail }
+            preparedTail = nil
             return self.prepared
         }
         let model = prepared.map(EditorModel.init(prepared:)) ?? EditorModel(file: TextFile(text: ""))
@@ -531,6 +671,8 @@ public final class TextDocument: NSDocument {
     private func applyPrepared() {
         guard let prepared = preparedLock.withLock({ () -> EditorModel.Prepared? in
             defer { self.prepared = nil }
+            if self.prepared != nil { tail = preparedTail }
+            preparedTail = nil
             return self.prepared
         }) else { return }
         install(EditorModel(prepared: prepared))

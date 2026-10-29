@@ -22,10 +22,6 @@ final class FindBarTests: XCTestCase {
         return item
     }
 
-    private func drainMainQueue() {
-        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
-    }
-
     func testFindMenuShowsBarAndEscapeHidesIt() throws {
         let controller = try open("abc")
         let find = controller.findController

@@ -61,8 +61,10 @@ final class TextMenuTests: XCTestCase {
 
     func testFailureLeavesTextAloneAndSaysWhy() {
         let (controller, window) = editor("{oops}")
+        // Let the new window's own selection news pass first: it clears hints.
+        drainMainQueue()
         controller.apply(.formatJSON)
-        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        drainMainQueue()
         XCTAssertEqual(controller.textView.string, "{oops}")
         XCTAssertTrue(controller.leftStatus.stringValue.hasPrefix("Not valid JSON"), controller.leftStatus.stringValue)
         _ = window

@@ -47,6 +47,17 @@ final class LargeTextView: NSView, NSTextFinderClient, NSMenuItemValidation {
         setSelection(NSRange(location: min(selection.location, newModel.storage.length), length: 0))
     }
 
+    /// Text was added at the end of the model (a followed log). Scrolled to
+    /// the bottom, the view follows it; anywhere else it stays put.
+    func textDidGrow(from oldLength: Int) {
+        let wasAtEnd = visibleRect.maxY >= bounds.height - layout.lineHeight
+        let firstNewLine = model.lineIndex.line(containing: max(oldLength - 1, 0))
+        longestLine = max(longestLine, model.lineIndex.longestLine(textLength: model.storage.length, from: firstNewLine))
+        updateFrameSize()
+        needsDisplay = true
+        if wasAtEnd { scrollToEndOfDocument(nil) }
+    }
+
     func setFont(_ newFont: NSFont) {
         font = newFont
         layout = Self.layout(for: newFont)
