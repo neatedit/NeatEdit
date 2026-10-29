@@ -161,4 +161,68 @@ final class EditorTailTests: XCTestCase {
         XCTAssertEqual(controller.textView.string, "rotated\nnext\n")
         XCTAssertFalse(document.isDocumentEdited)
     }
+
+    // MARK: Review findings
+
+    func testASameLengthEditInPlaceIsReloadedNotMissed() throws {
+        // Longer than FileTail's 4 KB sample, so the end alone looks untouched.
+        let url = try makeLog(lines: 1000)
+        let (document, controller, _) = try open(url)
+        defer { document.close() }
+        let handle = try FileHandle(forWritingTo: url)
+        try handle.write(contentsOf: Data("LINE".utf8))
+        try handle.close()
+        wait { controller.textView.string.hasPrefix("LINE 1") }
+
+        XCTAssertTrue(controller.textView.string.hasPrefix("LINE 1\nline 2\n"))
+        XCTAssertEqual(document.baseText, controller.textView.string)
+    }
+
+    func testNoDuplicatesAfterSavingMyVersionElsewhere() throws {
+        let url = try makeLog(lines: 1)
+        let (document, controller, _) = try open(url)
+        defer { document.close() }
+        controller.textView.insertText("!", replacementRange: NSRange(location: 0, length: 0))
+        drainMainQueue()
+        try append("L1\nL2\n", to: url)
+        wait { isPending(document) }
+        let mine = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).log")
+        try document.saveMyVersionAs(url: mine)
+        drainMainQueue()
+        XCTAssertEqual(controller.textView.string, "line 1\nL1\nL2\n")
+
+        try append("M\n", to: url)
+        wait { controller.textView.string.hasSuffix("M\n") }
+        XCTAssertEqual(controller.textView.string, "line 1\nL1\nL2\nM\n")
+    }
+
+    func testDismissThenUndoBackToCleanStillTracksTheDisk() throws {
+        let url = try makeLog(lines: 1)
+        let (document, controller, _) = try open(url)
+        defer { document.close() }
+        controller.textView.insertText("!", replacementRange: NSRange(location: 0, length: 0))
+        drainMainQueue()
+        try append("L\n", to: url)
+        wait { isPending(document) }
+        document.dismissExternalChange()
+        document.undoManager?.undo()
+        drainMainQueue()
+        XCTAssertFalse(document.isDocumentEdited)
+
+        try append("M\n", to: url)
+        wait { controller.textView.string.hasSuffix("M\n") }
+        XCTAssertEqual(controller.textView.string, "line 1\nL\nM\n")
+        XCTAssertEqual(document.baseText, "line 1\nL\nM\n")
+    }
+
+    func testMovingTheFileIsNotADeletion() throws {
+        let url = try makeLog(lines: 3)
+        let (document, _, _) = try open(url)
+        defer { document.close() }
+        let moved = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).log")
+        try FileManager.default.moveItem(at: url, to: moved)
+        wait(1.5) { false }
+
+        if case .deleted = document.externalState { XCTFail("a moved file was taken for deleted") }
+    }
 }
