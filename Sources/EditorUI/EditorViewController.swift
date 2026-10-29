@@ -2,7 +2,7 @@ import AppKit
 import EditorCore
 
 /// One editable tab: the text view on top, the status bar underneath.
-final class EditorViewController: NSViewController, DocumentContent, NSTextViewDelegate, NSMenuItemValidation {
+final class EditorViewController: NSViewController, TailFollowing, NSTextViewDelegate, NSMenuItemValidation {
     private(set) var model: EditorModel
     let textView: PlainTextView
     let scrollView = NSScrollView()
@@ -79,6 +79,21 @@ final class EditorViewController: NSViewController, DocumentContent, NSTextViewD
 
     func replaceText(with text: String, actionName: String) {
         replaceAllText(with: text, actionName: actionName)
+    }
+
+    var isScrolledToBottom: Bool {
+        let lineHeight = textView.layoutManager?.defaultLineHeight(for: Preferences.font) ?? 0
+        return scrollView.contentView.bounds.maxY >= textView.bounds.height - lineHeight
+    }
+
+    /// The file grew and the document appended it to the text directly
+    /// (no undo step, no text-change notification): catch everything up.
+    func textDidGrow(from oldLength: Int, follow: Bool) {
+        if follow { textView.scrollToEndOfDocument(nil) }
+        lineNumberRuler?.updateThickness()
+        lineNumberRuler?.needsDisplay = true
+        findController.textDidChange()
+        scheduleStatusUpdate()
     }
 
     func externalStateDidChange(_ state: TextDocument.ExternalState) {

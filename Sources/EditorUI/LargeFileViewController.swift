@@ -2,7 +2,7 @@ import AppKit
 import EditorCore
 
 /// A read-only tab for files too big for NSTextView.
-final class LargeFileViewController: NSViewController, DocumentContent, NSMenuItemValidation {
+final class LargeFileViewController: NSViewController, TailFollowing, NSMenuItemValidation {
     private(set) var model: EditorModel
     let textView: LargeTextView
     private let scrollView = NSScrollView()
@@ -52,9 +52,10 @@ final class LargeFileViewController: NSViewController, DocumentContent, NSMenuIt
 
     func reload(from file: TextFile) { replaceModel(EditorModel(file: file)) }
 
-    /// The file grew: the document appended `model` past `oldLength`.
-    func textDidGrow(from oldLength: Int) {
-        textView.textDidGrow(from: oldLength)
+    var isScrolledToBottom: Bool { textView.isScrolledToBottom }
+
+    func textDidGrow(from oldLength: Int, follow: Bool) {
+        textView.textDidGrow(from: oldLength, follow: follow)
         findController.textDidChange()
         updateStatus()
     }

@@ -11,6 +11,14 @@ protocol DocumentContent: NSViewController {
     func externalStateDidChange(_ state: TextDocument.ExternalState)
 }
 
+/// A tab that follows its file as it grows (`tail -f`).
+protocol TailFollowing: DocumentContent {
+    /// Asked before the text grows: whether to keep up with it.
+    var isScrolledToBottom: Bool { get }
+    /// The document appended to the model past `oldLength`.
+    func textDidGrow(from oldLength: Int, follow: Bool)
+}
+
 /// The strip under the text: caret/selection on the left, totals on the
 /// right, then encoding and line ending, which open menus when clicked.
 final class StatusBar: NSStackView {
