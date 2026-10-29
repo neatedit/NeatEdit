@@ -247,13 +247,16 @@ public final class TextDocument: NSDocument {
 
     /// The text as plain text in the editor font, wrapped to the page width.
     override public func printOperation(withSettings printSettings: [NSPrintInfo.AttributeKey: Any]) throws -> NSPrintOperation {
+        guard !isViewer else { throw CocoaError(.userCancelled) }
         let info = printInfo.copy() as! NSPrintInfo
         info.dictionary().addEntries(from: printSettings)
         info.horizontalPagination = .fit
         info.verticalPagination = .automatic
         info.isVerticallyCentered = false
-        let width = info.imageablePageBounds.width
+        // Between the Page Setup margins, which is where the operation lays it out.
+        let width = info.paperSize.width - info.leftMargin - info.rightMargin
         let view = NSTextView(frame: NSRect(x: 0, y: 0, width: width, height: 0))
+        view.maxSize = NSSize(width: width, height: .greatestFiniteMagnitude)
         view.isRichText = false
         view.textContainerInset = .zero
         view.textContainer?.lineFragmentPadding = 0

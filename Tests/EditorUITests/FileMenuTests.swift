@@ -100,9 +100,17 @@ final class FileMenuTests: XCTestCase {
         XCTAssertEqual(view.string, "first line\nsecond line\n")
         XCTAssertEqual(view.font, Preferences.font)
         let info = operation.printInfo
-        XCTAssertEqual(view.frame.width, info.imageablePageBounds.width, accuracy: 1)
+        XCTAssertEqual(view.frame.width, info.paperSize.width - info.leftMargin - info.rightMargin, accuracy: 1)
         XCTAssertEqual(info.horizontalPagination, .fit)
         XCTAssertFalse(info.isVerticallyCentered)
+    }
+
+    func testALongDocumentRunsOverSeveralPages() throws {
+        let (document, _) = try open((1...500).map { "line \($0)\n" }.joined())
+        defer { document.close() }
+        let operation = try document.printOperation(withSettings: [:])
+        let view = try XCTUnwrap(operation.view)
+        XCTAssertGreaterThan(view.frame.height, operation.printInfo.paperSize.height * 3)
     }
 
     func testTheViewerDoesNotPrint() throws {
@@ -110,6 +118,7 @@ final class FileMenuTests: XCTestCase {
         let (document, _) = try open("a big file\n")
         defer { document.close() }
         XCTAssertFalse(document.validateMenuItem(try fileItem("Print…")))
+        XCTAssertThrowsError(try document.printOperation(withSettings: [:]))
         XCTAssertTrue(document.validateMenuItem(try fileItem("Show in Finder")))
     }
 }
