@@ -8,8 +8,10 @@ final class LineEditorController: NSViewController {
     let textView = PlainTextView.make(text: "")
     let titleLabel = NSTextField(labelWithString: "")
     let errorLabel = NSTextField(wrappingLabelWithString: "")
-    /// Writes the edited text; throws to keep the sheet open with the reason.
-    var onSave: ((String) throws -> Void)?
+    /// Writes the edited text and calls back with nil, or the reason to stay open.
+    var onSave: ((String, @escaping (Error?) -> Void) -> Void)?
+    private let spinner = NSProgressIndicator()
+    private var buttons: [NSButton] = []
 
     init(chunk: LineSplice.Chunk) {
         self.chunk = chunk
@@ -42,7 +44,11 @@ final class LineEditorController: NSViewController {
         let save = NSButton(title: L10n.tr("Save"), target: self, action: #selector(save(_:)))
         save.keyEquivalent = "s"
         save.keyEquivalentModifierMask = .command
-        let buttons = NSStackView(views: [errorLabel, NSView(), cancel, save])
+        spinner.style = .spinning
+        spinner.controlSize = .small
+        spinner.isDisplayedWhenStopped = false
+        buttons = [cancel, save]
+        let buttons = NSStackView(views: [errorLabel, NSView(), spinner, cancel, save])
 
         let stack = NSStackView(views: [titleLabel, scroll, buttons])
         stack.orientation = .vertical
@@ -59,17 +65,35 @@ final class LineEditorController: NSViewController {
         view.window?.makeFirstResponder(textView)
     }
 
+    /// Whether a save is running (the sheet can't be dismissed meanwhile).
+    private(set) var isSaving = false
+
     @objc func save(_ sender: Any?) {
-        do {
-            try onSave?(textView.string)
-            dismiss(nil)
-        } catch {
-            errorLabel.stringValue = Self.message(for: error)
-            errorLabel.isHidden = false
+        guard !isSaving, let onSave else { return }
+        isSaving = true
+        errorLabel.isHidden = true
+        buttons.forEach { $0.isEnabled = false }
+        textView.isEditable = false
+        spinner.startAnimation(nil)
+        onSave(textView.string) { [weak self] error in
+            guard let self else { return }
+            self.isSaving = false
+            self.spinner.stopAnimation(nil)
+            self.buttons.forEach { $0.isEnabled = true }
+            self.textView.isEditable = true
+            if let error {
+                self.errorLabel.stringValue = Self.message(for: error)
+                self.errorLabel.isHidden = false
+            } else {
+                self.dismiss(nil)
+            }
         }
     }
 
-    @objc func cancel(_ sender: Any?) { dismiss(nil) }
+    @objc func cancel(_ sender: Any?) {
+        guard !isSaving else { return }
+        dismiss(nil)
+    }
 
     static func message(for error: Error) -> String {
         switch error as? LineSplice.Failure {

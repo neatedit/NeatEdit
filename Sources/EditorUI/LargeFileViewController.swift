@@ -85,9 +85,13 @@ final class LargeFileViewController: NSViewController, TailFollowing, NSMenuItem
         guard presentedViewControllers?.isEmpty ?? true, let document = view.window?.windowController?.document as? TextDocument
         else { return }
         let text = model.storage.string as NSString
-        let chunk = LineSplice.chunk(around: textView.selection, context: Self.editContext, in: text, lineIndex: model.lineIndex)
+        let chunk = LineSplice.chunk(around: textView.selection, context: Self.editContext, in: text, lineIndex: model.lineIndex,
+                                     encoding: model.file.encoding, hasBOM: model.file.hasBOM)
         let editor = LineEditorController(chunk: chunk)
-        editor.onSave = { [weak document] text in try document?.writeLines(text, over: chunk) }
+        editor.onSave = { [weak document] text, done in
+            guard let document else { return done(nil) }
+            document.writeLines(text, over: chunk, completion: done)
+        }
         presentAsSheet(editor)
     }
 

@@ -11,6 +11,10 @@ public enum LineSplice {
         /// In the decoded text, without the last line's line break.
         public let range: NSRange
         public let text: String
+        /// Where the chunk starts in the file, counted when it was picked from
+        /// the text it came from. Nil for encodings that can't be counted.
+        public let byteOffset: UInt64?
+        public let encoding: String.Encoding
     }
 
     public enum Failure: Error, Equatable {
@@ -22,7 +26,10 @@ public enum LineSplice {
     }
 
     /// The lines the selection touches, with `context` lines on each side.
-    public static func chunk(around selection: NSRange, context: Int, in text: NSString, lineIndex: LineIndex) -> Chunk {
+    public static func chunk(
+        around selection: NSRange, context: Int, in text: NSString, lineIndex: LineIndex,
+        encoding: String.Encoding = .utf8, hasBOM: Bool = false
+    ) -> Chunk {
         let lastOffset = selection.length > 0 ? NSMaxRange(selection) - 1 : selection.location
         let first = max(lineIndex.line(containing: selection.location) - context, 0)
         let selectedLast = lineIndex.line(containing: lastOffset)
@@ -32,7 +39,12 @@ public enum LineSplice {
         let start = lineIndex.starts[first]
         let end = NSMaxRange(lineIndex.contentRange(ofLine: last, in: text))
         let range = NSRange(location: start, length: end - start)
-        return Chunk(firstLine: first, lastLine: last, range: range, text: text.substring(with: range))
+        let bom = hasBOM ? (encoding == .utf8 ? 3 : 2) : 0
+        let offset = supports(encoding)
+            ? byteCount(of: NSRange(location: 0, length: start), in: text, encoding: encoding).map { UInt64(bom + $0) }
+            : nil
+        return Chunk(firstLine: first, lastLine: last, range: range, text: text.substring(with: range),
+                     byteOffset: offset, encoding: encoding)
     }
 
     /// Encodings where a character's bytes don't depend on what's around it,
@@ -43,27 +55,31 @@ public enum LineSplice {
          TextFile.koi8U, TextFile.koi8R].contains(encoding)
     }
 
-    /// Writes `replacement` where `chunk` is in the file at `url`, which
-    /// `text` was decoded from. Refuses (and writes nothing) unless the file
-    /// still has the chunk's bytes there; text appended since is kept.
-    public static func write(
-        _ replacement: String, over chunk: Chunk, in text: NSString,
-        encoding: String.Encoding, hasBOM: Bool, to url: URL
-    ) throws {
-        guard supports(encoding) else { throw Failure.unsupportedEncoding }
-        guard let expected = chunk.text.data(using: encoding) else { throw Failure.changedOnDisk }
-        guard let new = replacement.data(using: encoding) else { throw Failure.unencodable }
-        let bom = hasBOM ? (encoding == .utf8 ? 3 : 2) : 0
-        guard let before = byteCount(of: NSRange(location: 0, length: chunk.range.location), in: text, encoding: encoding) else {
-            throw Failure.changedOnDisk
+    /// Writes `replacement` where `chunk` is in the file at `url`. Refuses
+    /// (and writes nothing) unless the file still has the chunk's bytes there.
+    ///
+    /// The same number of bytes is written in place: no new file, so a program
+    /// holding the file open (a logger) and hard links keep seeing it. A
+    /// different length copies the bytes around the chunk into a replacement
+    /// file, keeping what was appended up to the moment of the swap; a writer
+    /// with the file still open keeps writing to the old copy.
+    public static func write(_ replacement: String, over chunk: Chunk, to url: URL) throws {
+        guard let start = chunk.byteOffset, let expected = chunk.text.data(using: chunk.encoding) else {
+            throw Failure.unsupportedEncoding
         }
-        let start = UInt64(bom + before)
+        guard let new = replacement.data(using: chunk.encoding) else { throw Failure.unencodable }
+        let url = url.resolvingSymlinksInPath()
 
         var failure: Error?
         var coordinationError: NSError?
-        NSFileCoordinator(filePresenter: nil).coordinate(writingItemAt: url, options: .forReplacing, error: &coordinationError) { url in
+        let options: NSFileCoordinator.WritingOptions = new.count == expected.count ? [] : .forReplacing
+        NSFileCoordinator(filePresenter: nil).coordinate(writingItemAt: url, options: options, error: &coordinationError) { url in
             do {
-                try splice(url, at: start, expected: expected, with: new)
+                if new.count == expected.count {
+                    try overwrite(url, at: start, expected: expected, with: new)
+                } else {
+                    try splice(url, at: start, expected: expected, with: new)
+                }
             } catch {
                 failure = error
             }
@@ -71,14 +87,28 @@ public enum LineSplice {
         if let error = failure ?? coordinationError { throw error }
     }
 
+    private static func verify(_ handle: FileHandle, at start: UInt64, expected: Data) throws -> UInt64 {
+        let size = try handle.seekToEnd()
+        try handle.seek(toOffset: start)
+        guard start + UInt64(expected.count) <= size, try handle.read(upToCount: expected.count) ?? Data() == expected else {
+            throw Failure.changedOnDisk
+        }
+        return size
+    }
+
+    private static func overwrite(_ url: URL, at start: UInt64, expected: Data, with new: Data) throws {
+        let handle = try FileHandle(forUpdating: url)
+        defer { try? handle.close() }
+        _ = try verify(handle, at: start, expected: expected)
+        try handle.seek(toOffset: start)
+        try handle.write(contentsOf: new)
+        try handle.synchronize()
+    }
+
     private static func splice(_ url: URL, at start: UInt64, expected: Data, with new: Data) throws {
         let source = try FileHandle(forReadingFrom: url)
         defer { try? source.close() }
-        let size = try source.seekToEnd()
-        try source.seek(toOffset: start)
-        guard start + UInt64(expected.count) <= size, try source.read(upToCount: expected.count) ?? Data() == expected else {
-            throw Failure.changedOnDisk
-        }
+        let size = try verify(source, at: start, expected: expected)
 
         let folder = try FileManager.default.url(for: .itemReplacementDirectory, in: .userDomainMask, appropriateFor: url, create: true)
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -88,15 +118,19 @@ public enum LineSplice {
         do {
             try copy(source, from: 0, to: start, into: output)
             try output.write(contentsOf: new)
-            // Keep up with a writer appending meanwhile: copy until the size holds.
+            // Keep up with a writer appending meanwhile, including during the
+            // flush to disk, so the window before the swap stays tiny.
             var copied = start + UInt64(expected.count)
             var end = size
-            while copied < end {
+            while true {
                 try copy(source, from: copied, to: end, into: output)
                 copied = end
+                try output.synchronize()
                 end = try source.seekToEnd()
+                // Shrunk (truncated, rotated): putting old bytes back would be wrong.
+                guard end >= copied else { throw Failure.changedOnDisk }
+                if end == copied { break }
             }
-            try output.synchronize()
             try output.close()
         } catch {
             try? output.close()
@@ -119,6 +153,7 @@ public enum LineSplice {
     /// Bytes `range` of `text` takes in `encoding`, counted without copying it.
     static func byteCount(of range: NSRange, in text: NSString, encoding: String.Encoding) -> Int? {
         guard range.length > 0 else { return 0 }
+        guard range.location >= 0, NSMaxRange(range) <= text.length else { return nil }
         let cfEncoding = CFStringConvertNSStringEncodingToEncoding(encoding.rawValue)
         var used: CFIndex = 0
         let converted = CFStringGetBytes(text as CFString, CFRange(location: range.location, length: range.length),

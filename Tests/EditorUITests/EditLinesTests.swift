@@ -74,6 +74,7 @@ final class EditLinesTests: XCTestCase {
         let text = editor.textView.string.replacingOccurrences(of: "line 50", with: "EDITED 50\nnew line")
         editor.textView.string = text
         editor.save(nil)
+        wait { controller.presentedViewControllers?.first == nil }
 
         let expected = log.replacingOccurrences(of: "line 50\n", with: "EDITED 50\nnew line\n")
         XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), expected)
@@ -93,6 +94,7 @@ final class EditLinesTests: XCTestCase {
         try Data(changed.utf8).write(to: url)
         editor.textView.string = "mine"
         editor.save(nil)
+        wait { !editor.isSaving }
 
         XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), changed, "nothing written")
         XCTAssertTrue(try sheet(of: controller) === editor, "still open, the edit isn't lost")
@@ -113,5 +115,34 @@ final class EditLinesTests: XCTestCase {
         let menu = try XCTUnwrap(view.menu(for: event))
         XCTAssertNotNil(menu.items.first { $0.action == #selector(LargeFileViewController.editLines(_:)) })
         XCTAssertEqual(controller.model.lineIndex.line(containing: view.selection.location), 3)
+    }
+
+    func testATypoFixOfTheSameLengthShowsUpInTheViewer() throws {
+        // Far from the end, so the tail's 4 KB sample can't notice it.
+        let big = (1...2000).map { "line \($0)\n" }.joined()
+        let (document, controller, url) = try openLog(big)
+        defer { document.close() }
+        controller.textView.setSelection(NSRange(location: offset(of: "line 20\n", in: controller), length: 0))
+        controller.editLines(nil)
+        let editor = try sheet(of: controller)
+        editor.textView.string = editor.textView.string.replacingOccurrences(of: "line 20\n", with: "LINE 20\n")
+        editor.save(nil)
+        let expected = big.replacingOccurrences(of: "line 20\n", with: "LINE 20\n")
+        wait { controller.model.storage.string == expected }
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), expected)
+        XCTAssertEqual(controller.model.storage.string, expected)
+    }
+
+    func testNewLinesInACRLFFileGetCRLF() throws {
+        let crlf = (1...100).map { "line \($0)\r\n" }.joined()
+        let (document, controller, url) = try openLog(crlf)
+        defer { document.close() }
+        controller.textView.setSelection(NSRange(location: offset(of: "line 50\r", in: controller), length: 0))
+        controller.editLines(nil)
+        let editor = try sheet(of: controller)
+        editor.textView.string = editor.textView.string.replacingOccurrences(of: "line 50", with: "line 50\nadded")
+        editor.save(nil)
+        wait { controller.presentedViewControllers?.first == nil }
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), crlf.replacingOccurrences(of: "line 50\r\n", with: "line 50\r\nadded\r\n"))
     }
 }

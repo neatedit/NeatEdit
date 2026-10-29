@@ -245,12 +245,24 @@ public final class TextDocument: NSDocument {
 
     // MARK: Editing lines of a large file
 
-    /// Writes `text` over `chunk` in the file, then shows the file as it is now.
-    func writeLines(_ text: String, over chunk: LineSplice.Chunk) throws {
-        guard let fileURL, let model else { return }
-        try LineSplice.write(text, over: chunk, in: model.storage.string as NSString,
-                             encoding: model.file.encoding, hasBOM: model.file.hasBOM, to: fileURL)
-        scheduleDiskCheck()
+    /// Writes `text` over `chunk` in the file off the main thread (a big
+    /// file is a long copy), then reads the whole file again: an edit of the
+    /// same length looks like nothing happened to the tail.
+    func writeLines(_ text: String, over chunk: LineSplice.Chunk, completion: @escaping (Error?) -> Void) {
+        guard let fileURL, let model else { return completion(nil) }
+        // Return in the sheet types LF; keep the file's own line endings.
+        let replacement = model.lineEnding == .lf ? text : model.lineEnding.apply(to: text)
+        DispatchQueue.global(qos: .userInitiated).async {
+            var failure: Error?
+            do { try LineSplice.write(replacement, over: chunk, to: fileURL) } catch { failure = error }
+            DispatchQueue.main.async {
+                if failure == nil {
+                    self.tail = nil
+                    self.scheduleDiskCheck()
+                }
+                completion(failure)
+            }
+        }
     }
 
     // MARK: Printing
