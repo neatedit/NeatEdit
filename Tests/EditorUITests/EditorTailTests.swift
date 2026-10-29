@@ -245,4 +245,38 @@ final class EditorTailTests: XCTestCase {
         XCTAssertEqual(controller.textView.string, text)
         XCTAssertEqual(document.baseText, text)
     }
+
+    func testLinesCompletingAFirstLoneCRSetTheLineEnding() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).log")
+        try Data("a\r".utf8).write(to: url)
+        let (document, controller, _) = try open(url)
+        defer { document.close() }
+        try append("\nb\r\n", to: url)
+        wait { controller.textView.string == "a\r\nb\r\n" }
+        XCTAssertEqual(controller.model.lineEnding, .crlf)
+
+        controller.textView.insertText("!", replacementRange: NSRange(location: 0, length: 0))
+        drainMainQueue()
+        let saved = expectation(description: "save")
+        document.save(to: url, ofType: "public.plain-text", for: .saveOperation) { _ in saved.fulfill() }
+        wait(for: [saved], timeout: 5)
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "!a\r\nb\r\n")
+    }
+
+    func testAReadFromBeforeAKeystrokeDoesNotWipeIt() throws {
+        let url = try makeLog(lines: 1)
+        let (document, controller, _) = try open(url)
+        defer { document.close() }
+        let before = document.textStamp
+        try append("LOG\n", to: url)
+        let read = try XCTUnwrap(TextDocument.DiskRead.make(
+            Data(contentsOf: url), preferring: .utf8, forViewer: false, date: nil))
+        // Typed, but NSDocument hasn't counted the change yet.
+        controller.textView.insertText("x", replacementRange: NSRange(location: 0, length: 0))
+        document.diskReadFinished(read, stamp: document.diskReadStamp, text: before)
+
+        XCTAssertEqual(controller.textView.string, "xline 1\n")
+        drainMainQueue()
+        XCTAssertTrue(document.isDocumentEdited)
+    }
 }

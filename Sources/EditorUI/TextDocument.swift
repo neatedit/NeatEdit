@@ -304,6 +304,7 @@ public final class TextDocument: NSDocument {
             guard let self else { return }
             guard let url = self.fileURL, let model = self.model else { return following ? self.followReadDone() : () }
             let stamp = self.diskReadStamp
+            let text = self.textStamp
             let encoding = model.file.encoding
             let tail = forViewer ? self.tail : nil
             DispatchQueue.global(qos: .userInitiated).async {
@@ -313,7 +314,7 @@ public final class TextDocument: NSDocument {
                     case .appended(let followed, let change, let date):
                         self.tailReadFinished(followed, change, from: tail!)
                         self.fileModificationDate = date
-                    case .read(let read): self.diskReadFinished(read, stamp: stamp)
+                    case .read(let read): self.diskReadFinished(read, stamp: stamp, text: text)
                     case .nothing: break
                     }
                     if following { self.followReadDone() }
@@ -448,16 +449,28 @@ public final class TextDocument: NSDocument {
         let views = windowControllers.compactMap { $0.contentViewController as? TailFollowing }
         let atBottom = views.map(\.isScrolledToBottom)
         let oldLength = model.storage.length
+        // A tab opened on a partial first line guessed its line ending.
+        let guessed = !isViewer && (model.storage.string as NSString).range(of: "\n").location == NSNotFound
         model.append(text)
+        if guessed { model.lineEnding = LineEnding.detect(in: model.storage.string) }
         for (view, follow) in zip(views, atBottom) { view.textDidGrow(from: oldLength, follow: follow) }
     }
 
     /// A background read finished. If we saved since it started, it may
-    /// predate our own write: read again instead of trusting it.
-    func diskReadFinished(_ read: DiskRead?, stamp: Int) {
-        guard stamp == diskReadStamp else { return scheduleDiskCheck() }
+    /// predate our own write; if the text changed (a keystroke NSDocument
+    /// hasn't counted yet, a revert), the clean/edited decision is stale.
+    /// Either way, read again instead of trusting it.
+    func diskReadFinished(_ read: DiskRead?, stamp: Int, text: TextStamp? = nil) {
+        guard stamp == diskReadStamp, text == nil || text == textStamp else { return scheduleDiskCheck() }
         diskDidChange(read)
     }
+
+    struct TextStamp: Equatable {
+        let model: ObjectIdentifier?
+        let edits: Int
+    }
+
+    var textStamp: TextStamp { TextStamp(model: model.map(ObjectIdentifier.init), edits: model?.editCount ?? 0) }
 
     /// Same as a finished read, decoding on the spot (tests, deletion).
     func diskDidChange(_ data: Data?, modificationDate: Date? = nil) {

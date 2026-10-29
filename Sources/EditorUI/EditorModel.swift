@@ -22,6 +22,9 @@ public final class EditorModel: NSObject, NSTextStorageDelegate {
     /// running, or something other than an append changed the text.
     private var appendedDuringCount: Int?
     private var isAppending = false
+    /// Bumped by every change except an append from disk, so a disk read can
+    /// tell whether the text changed while it was in flight.
+    public private(set) var editCount = 0
 
     /// Documents up to this many UTF-16 units are counted synchronously.
     static let syncCountLimit = 1_000_000
@@ -73,6 +76,7 @@ public final class EditorModel: NSObject, NSTextStorageDelegate {
         guard editedMask.contains(.editedCharacters) else { return }
         lineIndex.update(in: textStorage.string as NSString, editedRange: editedRange, changeInLength: delta)
         guard !isAppending else { return }
+        editCount += 1
         totalCharacters = nil
         appendedDuringCount = nil
     }
