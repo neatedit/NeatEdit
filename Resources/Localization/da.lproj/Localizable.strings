@@ -171,3 +171,4 @@
 "These lines changed on disk. Cancel and open them again to edit the current text." = "Disse linjer er ændret på disken. Annuller, og åbn dem igen for at redigere den aktuelle tekst.";
 "Some characters don't exist in the file's encoding." = "Nogle tegn findes ikke i filens tegnkodning.";
 "Lines can't be edited in this file's encoding." = "Linjer kan ikke redigeres i denne fils tegnkodning.";
+"Syntax Highlighting" = "Syntaksfremhævning";

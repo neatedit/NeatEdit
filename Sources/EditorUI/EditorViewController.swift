@@ -47,6 +47,8 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
         NotificationCenter.default.addObserver(
             self, selector: #selector(preferencesChanged), name: Preferences.didChange, object: nil)
         attach(model)
+        textView.onStorageEdit = { [weak self] in self?.syntaxColoring.textDidChange() }
+        applySyntaxLanguage()
     }
 
     override func viewDidAppear() {
@@ -60,6 +62,17 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
             pendingPosition = nil
             restore(position)
         }
+    }
+
+    private(set) lazy var syntaxColoring = SyntaxColoring(textView: textView, scrollView: scrollView)
+
+    /// The file's name, which picks the language.
+    var fileName: String? {
+        didSet { if isViewLoaded { applySyntaxLanguage() } }
+    }
+
+    private func applySyntaxLanguage() {
+        syntaxColoring.language = Preferences.highlightsSyntax ? fileName.flatMap(SyntaxLanguage.detect(fileName:)) : nil
     }
 
     var pendingPosition: FilePosition?
@@ -97,6 +110,7 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
         attach(newModel)
         let location = min(selection.location, newModel.storage.length)
         textView.setSelectedRange(NSRange(location: location, length: 0))
+        syntaxColoring.textDidChange()
     }
 
     func reload(from file: TextFile) {
@@ -282,6 +296,7 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
         textView.showsInvisibles = Preferences.showsInvisibles
         textView.highlightsCurrentLine = Preferences.highlightsCurrentLine
         applyLineNumbers()
+        applySyntaxLanguage()
     }
 
     private func applyLineNumbers() {
@@ -347,6 +362,7 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
         return NSRange(location: start, length: end - start)
     }
     @objc func toggleLineNumbers(_ sender: Any?) { Preferences.showsLineNumbers.toggle() }
+    @objc func toggleSyntaxHighlighting(_ sender: Any?) { Preferences.highlightsSyntax.toggle() }
     @objc func toggleInvisibles(_ sender: Any?) { Preferences.showsInvisibles.toggle() }
     @objc func toggleCurrentLine(_ sender: Any?) { Preferences.highlightsCurrentLine.toggle() }
     @objc func showFontPanel(_ sender: Any?) { Preferences.showFontPanel() }
@@ -426,6 +442,9 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(toggleWrapLines(_:)) {
             menuItem.state = Preferences.wrapsLines ? .on : .off
+        }
+        if menuItem.action == #selector(toggleSyntaxHighlighting(_:)) {
+            menuItem.state = Preferences.highlightsSyntax ? .on : .off
         }
         if menuItem.action == #selector(toggleLineNumbers(_:)) {
             menuItem.state = Preferences.showsLineNumbers ? .on : .off

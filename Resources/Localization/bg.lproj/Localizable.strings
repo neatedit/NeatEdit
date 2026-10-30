@@ -171,3 +171,4 @@
 "These lines changed on disk. Cancel and open them again to edit the current text." = "Тези редове са променени на диска. Откажете и ги отворете отново, за да редактирате текущия текст.";
 "Some characters don't exist in the file's encoding." = "Някои знаци не съществуват в кодирането на файла.";
 "Lines can't be edited in this file's encoding." = "Редовете не могат да се редактират в кодирането на този файл.";
+"Syntax Highlighting" = "Оцветяване на синтаксиса";

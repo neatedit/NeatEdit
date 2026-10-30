@@ -171,3 +171,4 @@
 "These lines changed on disk. Cancel and open them again to edit the current text." = "Αυτές οι γραμμές άλλαξαν στον δίσκο. Ακυρώστε και ανοίξτε τις ξανά για να επεξεργαστείτε το τρέχον κείμενο.";
 "Some characters don't exist in the file's encoding." = "Ορισμένοι χαρακτήρες δεν υπάρχουν στην κωδικοποίηση του αρχείου.";
 "Lines can't be edited in this file's encoding." = "Οι γραμμές δεν μπορούν να επεξεργαστούν στην κωδικοποίηση αυτού του αρχείου.";
+"Syntax Highlighting" = "Επισήμανση σύνταξης";

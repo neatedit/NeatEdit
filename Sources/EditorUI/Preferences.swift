@@ -17,6 +17,7 @@ public enum Preferences {
     private static let unwrapPasteKey = "unwrapPastedText"
     private static let invisiblesKey = "showInvisibles"
     private static let currentLineKey = "highlightCurrentLine"
+    private static let syntaxKey = "highlightSyntax"
     private static let filePositionsKey = "filePositions"
     static let defaultFontSize: CGFloat = 13
 
@@ -29,6 +30,7 @@ public enum Preferences {
             unwrapPasteKey: true,
             invisiblesKey: false,
             currentLineKey: true,
+            syntaxKey: true,
         ])
         // Reopen every tab (including unsaved scratch tabs) after quitting,
         // regardless of the system "close windows when quitting" setting.
@@ -72,6 +74,12 @@ public enum Preferences {
     public static var highlightsCurrentLine: Bool {
         get { defaults.bool(forKey: currentLineKey) }
         set { set(newValue, forKey: currentLineKey) }
+    }
+
+    /// Colours by language, from the file's name.
+    public static var highlightsSyntax: Bool {
+        get { defaults.bool(forKey: syntaxKey) }
+        set { set(newValue, forKey: syntaxKey) }
     }
 
     /// Undo terminal hard wrapping in pasted text (as its own undo step).

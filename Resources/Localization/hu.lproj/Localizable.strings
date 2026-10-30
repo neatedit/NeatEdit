@@ -171,3 +171,4 @@
 "These lines changed on disk. Cancel and open them again to edit the current text." = "Ezek a sorok megváltoztak a lemezen. Szakítsa meg, és nyissa meg őket újra az aktuális szöveg szerkesztéséhez.";
 "Some characters don't exist in the file's encoding." = "Néhány karakter nem létezik a fájl kódolásában.";
 "Lines can't be edited in this file's encoding." = "Ennek a fájlnak a kódolásában a sorok nem szerkeszthetők.";
+"Syntax Highlighting" = "Szintaxiskiemelés";

@@ -185,6 +185,7 @@ public final class TextDocument: NSDocument {
         windowController.shouldCascadeWindows = true
         addWindowController(windowController)
         if let fileURL { (controller as? DocumentContent)?.pendingPosition = Preferences.filePosition(for: fileURL) }
+        (controller as? EditorViewController)?.fileName = fileURL?.lastPathComponent
         watchForAppends()
     }
 
@@ -208,6 +209,7 @@ public final class TextDocument: NSDocument {
             guard !Self.sameFile(oldValue, fileURL), !windowControllers.isEmpty else { return }
             let subtitle = Self.subtitle(for: fileURL, home: Self.homeDirectory, viewer: isViewer)
             windowControllers.forEach { $0.window?.subtitle = subtitle }
+            (windowControllers.first?.contentViewController as? EditorViewController)?.fileName = fileURL?.lastPathComponent
             // Moved, not deleted: show and follow the file where it is now.
             if case .deleted = externalState { resetExternalState() }
             watchForAppends()

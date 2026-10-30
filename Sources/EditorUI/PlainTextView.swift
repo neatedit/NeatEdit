@@ -221,7 +221,13 @@ public final class PlainTextView: NSTextView, NSLayoutManagerDelegate {
 
     /// Any edit to the storage, including ones that bypass the text view
     /// (a reload of the same length): the band may have moved.
-    func textStorageDidEdit() { invalidateCurrentLine() }
+    /// Any change to the text, including ones that bypass the delegate (a followed log).
+    var onStorageEdit: (() -> Void)?
+
+    func textStorageDidEdit() {
+        invalidateCurrentLine()
+        onStorageEdit?()
+    }
 
     /// Non-contiguous layout catching up can move lines below what it laid out.
     public func layoutManager(_ layoutManager: NSLayoutManager, didCompleteLayoutFor textContainer: NSTextContainer?, atEnd layoutFinishedFlag: Bool) {

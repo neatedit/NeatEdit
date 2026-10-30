@@ -171,3 +171,4 @@
 "These lines changed on disk. Cancel and open them again to edit the current text." = "De här raderna har ändrats på disken. Avbryt och öppna dem igen för att redigera den aktuella texten.";
 "Some characters don't exist in the file's encoding." = "Vissa tecken finns inte i filens teckenkodning.";
 "Lines can't be edited in this file's encoding." = "Rader kan inte redigeras i den här filens teckenkodning.";
+"Syntax Highlighting" = "Syntaxmarkering";

@@ -171,3 +171,4 @@
 "These lines changed on disk. Cancel and open them again to edit the current text." = "Aceste rânduri s-au modificat pe disc. Anulați și deschideți-le din nou pentru a edita textul actual.";
 "Some characters don't exist in the file's encoding." = "Unele caractere nu există în codificarea fișierului.";
 "Lines can't be edited in this file's encoding." = "Rândurile nu pot fi editate în codificarea acestui fișier.";
+"Syntax Highlighting" = "Evidențiere sintaxă";
