@@ -56,6 +56,36 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
         textView.highlightsCurrentLine = Preferences.highlightsCurrentLine
         applyLineNumbers()
         view.window?.makeFirstResponder(textView)
+        if let position = pendingPosition {
+            pendingPosition = nil
+            restore(position)
+        }
+    }
+
+    var pendingPosition: FilePosition?
+
+    var currentPosition: FilePosition {
+        let selection = textView.selectedRange()
+        var top = 0
+        if let layoutManager = textView.layoutManager, let container = textView.textContainer, model.storage.length > 0 {
+            let glyphs = layoutManager.glyphRange(forBoundingRect: textView.visibleRect, in: container)
+            top = model.lineIndex.line(containing: layoutManager.characterIndexForGlyph(at: glyphs.location))
+        }
+        return FilePosition(location: selection.location, length: selection.length, topLine: top,
+                            atEnd: textView.visibleRect.minY > 0 && isScrolledToBottom)
+    }
+
+    private func restore(_ position: FilePosition) {
+        textView.setSelectedRange(position.selection(in: model.storage.string as NSString))
+        if position.atEnd { return textView.scrollToEndOfDocument(nil) }
+        guard position.topLine > 0, position.topLine < model.lineIndex.lineCount else { return }
+        let start = model.lineIndex.starts[position.topLine]
+        guard start < model.storage.length, let layoutManager = textView.layoutManager else {
+            return textView.scrollToEndOfDocument(nil)
+        }
+        let glyph = layoutManager.glyphIndexForCharacter(at: start)
+        let row = layoutManager.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+        textView.scroll(NSPoint(x: 0, y: row.minY + textView.textContainerOrigin.y))
     }
 
     /// Swap in freshly loaded text (revert, or the file changed on disk).

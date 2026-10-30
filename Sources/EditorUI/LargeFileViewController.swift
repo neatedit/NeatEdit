@@ -41,7 +41,14 @@ final class LargeFileViewController: NSViewController, TailFollowing, NSMenuItem
     override func viewDidAppear() {
         super.viewDidAppear()
         view.window?.makeFirstResponder(textView)
+        if let position = pendingPosition {
+            pendingPosition = nil
+            textView.restore(position)
+        }
     }
+
+    var pendingPosition: FilePosition?
+    var currentPosition: FilePosition { textView.position }
 
     func replaceModel(_ newModel: EditorModel) {
         model = newModel

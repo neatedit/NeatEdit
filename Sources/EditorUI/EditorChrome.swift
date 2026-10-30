@@ -9,6 +9,10 @@ protocol DocumentContent: NSViewController {
     /// Replace the text as one undo step (format unchanged).
     func replaceText(with text: String, actionName: String)
     func externalStateDidChange(_ state: TextDocument.ExternalState)
+    /// Where the file was left, to go back to when the tab first appears.
+    var pendingPosition: FilePosition? { get set }
+    /// Where the file is now.
+    var currentPosition: FilePosition { get }
 }
 
 /// A tab that follows its file as it grows (`tail -f`).

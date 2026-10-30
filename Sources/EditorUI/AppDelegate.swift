@@ -16,6 +16,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate()
     }
 
+    // Quitting doesn't close the documents.
+    public func applicationWillTerminate(_ notification: Notification) {
+        NSDocumentController.shared.documents.forEach { ($0 as? TextDocument)?.savePosition() }
+    }
+
     @objc func newTab(_ sender: Any?) {
         NSDocumentController.shared.newDocument(sender)
     }

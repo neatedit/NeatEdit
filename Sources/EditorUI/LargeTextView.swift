@@ -318,6 +318,21 @@ final class LargeTextView: NSView, NSMenuItemValidation {
         return NSRect(x: rect.minX - width, y: rect.minY, width: rect.width + width, height: rect.height)
     }
 
+    var position: FilePosition {
+        let top = layout.line(atY: visibleRect.minY, lineCount: model.lineIndex.lineCount)
+        return FilePosition(location: selection.location, length: selection.length, topLine: top,
+                            atEnd: visibleRect.minY > 0 && isScrolledToBottom)
+    }
+
+    func restore(_ position: FilePosition) {
+        let range = position.selection(in: text)
+        anchor = NSRange(location: range.location, length: 0)
+        setSelection(range, scroll: false)
+        if position.atEnd { return scrollToEndOfDocument(nil) }
+        guard position.topLine > 0 else { return }
+        scroll(NSPoint(x: visibleRect.minX, y: layout.lineRect(position.topLine, width: 0).minY))
+    }
+
     func select(at point: NSPoint, granularity: Granularity, extending: Bool) {
         let offset = offset(at: point)
         let hit: NSRange
