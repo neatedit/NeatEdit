@@ -65,6 +65,32 @@ final class EditLinesTests: XCTestCase {
         XCTAssertNil(controller.presentedViewControllers?.first)
     }
 
+    func testTheCaretStartsWhereItWasInTheViewer() throws {
+        let (document, controller, _) = try openLog(log)
+        defer { document.close() }
+        let line = offset(of: "line 50\n", in: controller)
+        controller.textView.setSelection(NSRange(location: line + 2, length: 3))
+        controller.editLines(nil)
+        let editor = try sheet(of: controller)
+        defer { editor.cancel(nil) }
+        let chunkStart = ((1...100).prefix(39).map { "line \($0)\n" }.joined() as NSString).length
+        XCTAssertEqual(editor.textView.selectedRange(), NSRange(location: line + 2 - chunkStart, length: 3))
+        XCTAssertEqual((editor.textView.string as NSString).substring(with: editor.textView.selectedRange()), "ne ")
+        XCTAssertTrue(editor.textView.visibleRect.height > 0)
+    }
+
+    func testAnEditTypedStraightAwayLandsOnTheChosenLine() throws {
+        let (document, controller, url) = try openLog(log)
+        defer { document.close() }
+        controller.textView.setSelection(NSRange(location: offset(of: "line 50\n", in: controller), length: 0))
+        controller.editLines(nil)
+        let editor = try sheet(of: controller)
+        editor.textView.insertText("new ", replacementRange: editor.textView.selectedRange())
+        editor.save(nil)
+        wait { controller.presentedViewControllers?.first == nil }
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), log.replacingOccurrences(of: "line 50\n", with: "new line 50\n"))
+    }
+
     func testSavingWritesTheFileAndTheViewerShowsIt() throws {
         let (document, controller, url) = try openLog(log)
         defer { document.close() }
