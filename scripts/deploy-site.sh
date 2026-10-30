@@ -31,7 +31,7 @@ stamp=$(date +%Y%m%d-%H%M%S)
 ssh "$HOST" "tar czf /root/neatedit-site-backup-$stamp.tgz -C /var/www neatedit \
     && ls -1t /root/neatedit-site-backup-*.tgz | tail -n +11 | xargs -r rm -f"
 
-rsync -rlc --chmod=D755,F644 --no-owner --no-group --exclude .DS_Store web/ "$HOST:$ROOT/"
+rsync -rlc --exclude .DS_Store web/ "$HOST:$ROOT/"
 
 for page in / /features/ /support/ /privacy/ /assets/site.css /assets/editor-light.png; do
     code=$(curl -s -o /dev/null -w '%{http_code}' "$SITE$page")
