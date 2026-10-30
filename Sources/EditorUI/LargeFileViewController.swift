@@ -75,8 +75,28 @@ final class LargeFileViewController: NSViewController, TailFollowing, NSMenuItem
         textView.setFont(Preferences.font)
         textView.showsInvisibles = Preferences.showsInvisibles
         textView.highlightsCurrentLine = Preferences.highlightsCurrentLine
+        textView.showsLineNumbers = Preferences.viewerShowsLineNumbers
     }
 
+    /// Lines around the caret (or the selected lines) with this many on each side.
+    static let editContext = 10
+
+    /// Edit ▸ Edit Lines…: a sheet with a few lines, written straight into the file.
+    @objc func editLines(_ sender: Any?) {
+        guard presentedViewControllers?.isEmpty ?? true, let document = view.window?.windowController?.document as? TextDocument
+        else { return }
+        let text = model.storage.string as NSString
+        let chunk = LineSplice.chunk(around: textView.selection, context: Self.editContext, in: text, lineIndex: model.lineIndex,
+                                     encoding: model.file.encoding, hasBOM: model.file.hasBOM)
+        let editor = LineEditorController(chunk: chunk)
+        editor.onSave = { [weak document] text, done in
+            guard let document else { return done(CocoaError(.fileNoSuchFile)) }
+            document.writeLines(text, over: chunk, completion: done)
+        }
+        presentAsSheet(editor)
+    }
+
+    @objc func toggleLineNumbers(_ sender: Any?) { Preferences.viewerShowsLineNumbers.toggle() }
     @objc func toggleInvisibles(_ sender: Any?) { Preferences.showsInvisibles.toggle() }
     @objc func toggleCurrentLine(_ sender: Any?) { Preferences.highlightsCurrentLine.toggle() }
 
@@ -121,11 +141,16 @@ final class LargeFileViewController: NSViewController, TailFollowing, NSMenuItem
         if menuItem.action == #selector(toggleInvisibles(_:)) {
             menuItem.state = Preferences.showsInvisibles ? .on : .off
         }
+        if menuItem.action == #selector(editLines(_:)) {
+            return LineSplice.supports(model.file.encoding) && (presentedViewControllers?.isEmpty ?? true)
+        }
         if menuItem.action == #selector(toggleCurrentLine(_:)) {
             menuItem.state = Preferences.highlightsCurrentLine ? .on : .off
         }
-        // Lines never wrap or get numbered in the viewer.
+        if menuItem.action == #selector(toggleLineNumbers(_:)) {
+            menuItem.state = Preferences.viewerShowsLineNumbers ? .on : .off
+        }
+        // Lines never wrap in the viewer.
         return menuItem.action != #selector(EditorViewController.toggleWrapLines(_:))
-            && menuItem.action != #selector(EditorViewController.toggleLineNumbers(_:))
     }
 }

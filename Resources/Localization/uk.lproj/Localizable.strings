@@ -166,3 +166,8 @@
 "This is the file that changed on disk; saving here would overwrite those changes." = "Це той файл, що змінився на диску; збереження сюди перезапише ці зміни.";
 "Reload from Disk" = "Перезавантажити з диска";
 "(my version)" = "(моя версія)";
+"Edit Lines…" = "Редагувати рядки…";
+"Save" = "Зберегти";
+"These lines changed on disk. Cancel and open them again to edit the current text." = "Ці рядки змінилися на диску. Скасуйте й відкрийте їх знову, щоб редагувати поточний текст.";
+"Some characters don't exist in the file's encoding." = "Деяких символів немає в кодуванні файла.";
+"Lines can't be edited in this file's encoding." = "У кодуванні цього файла рядки редагувати не можна.";

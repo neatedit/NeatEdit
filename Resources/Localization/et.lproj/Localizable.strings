@@ -166,3 +166,8 @@
 "This is the file that changed on disk; saving here would overwrite those changes." = "See on fail, mis kettal muutus; siia salvestamine kirjutaks need muudatused üle.";
 "Reload from Disk" = "Laadi kettalt uuesti";
 "(my version)" = "(minu versioon)";
+"Edit Lines…" = "Muuda ridu…";
+"Save" = "Salvesta";
+"These lines changed on disk. Cancel and open them again to edit the current text." = "Need read on kettal muutunud. Tühista ja ava need uuesti, et praegust teksti muuta.";
+"Some characters don't exist in the file's encoding." = "Mõnda märki faili kodeeringus ei ole.";
+"Lines can't be edited in this file's encoding." = "Selle faili kodeeringus ei saa ridu muuta.";

@@ -166,3 +166,8 @@
 "This is the file that changed on disk; saving here would overwrite those changes." = "To je datoteka, ki se je spremenila na disku; shranjevanje sem bi prepisalo te spremembe.";
 "Reload from Disk" = "Znova naloži z diska";
 "(my version)" = "(moja različica)";
+"Edit Lines…" = "Uredi vrstice…";
+"Save" = "Shrani";
+"These lines changed on disk. Cancel and open them again to edit the current text." = "Te vrstice so se na disku spremenile. Prekličite in jih znova odprite, da uredite trenutno besedilo.";
+"Some characters don't exist in the file's encoding." = "Nekateri znaki v kodiranju datoteke ne obstajajo.";
+"Lines can't be edited in this file's encoding." = "V kodiranju te datoteke vrstic ni mogoče urejati.";

@@ -166,3 +166,8 @@
 "This is the file that changed on disk; saving here would overwrite those changes." = "Seo é an comhad a athraíodh ar an diosca; dá sábhálfá anseo, scríobhfaí thar na hathruithe sin.";
 "Reload from Disk" = "Athluchtaigh ón Diosca";
 "(my version)" = "(mo leagan)";
+"Edit Lines…" = "Cuir línte in eagar…";
+"Save" = "Sábháil";
+"These lines changed on disk. Cancel and open them again to edit the current text." = "Athraíodh na línte seo ar an diosca. Cealaigh agus oscail arís iad chun an téacs reatha a chur in eagar.";
+"Some characters don't exist in the file's encoding." = "Níl roinnt carachtar ann in ionchódú an chomhaid.";
+"Lines can't be edited in this file's encoding." = "Ní féidir línte a chur in eagar in ionchódú an chomhaid seo.";

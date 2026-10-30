@@ -123,6 +123,8 @@ enum MainMenu {
             item("Go to Line…", #selector(EditorViewController.goToLine(_:)), "l"),
             item("Go to Beginning", #selector(NSResponder.moveToBeginningOfDocument(_:)), arrow(NSUpArrowFunctionKey)),
             item("Go to End", #selector(NSResponder.moveToEndOfDocument(_:)), arrow(NSDownArrowFunctionKey)),
+            .separator(),
+            item("Edit Lines…", #selector(LargeFileViewController.editLines(_:)), "\r"),
         ])
 
         // Each acts on the selection, or on the whole text when nothing is selected.

@@ -166,3 +166,8 @@
 "This is the file that changed on disk; saving here would overwrite those changes." = "To jest plik, który zmienił się na dysku; zachowanie go tutaj nadpisałoby te zmiany.";
 "Reload from Disk" = "Wczytaj ponownie z dysku";
 "(my version)" = "(moja wersja)";
+"Edit Lines…" = "Edytuj wiersze…";
+"Save" = "Zachowaj";
+"These lines changed on disk. Cancel and open them again to edit the current text." = "Te wiersze zmieniły się na dysku. Anuluj i otwórz je ponownie, aby edytować bieżący tekst.";
+"Some characters don't exist in the file's encoding." = "Niektóre znaki nie istnieją w kodowaniu pliku.";
+"Lines can't be edited in this file's encoding." = "W kodowaniu tego pliku nie można edytować wierszy.";

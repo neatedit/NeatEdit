@@ -166,3 +166,8 @@
 "This is the file that changed on disk; saving here would overwrite those changes." = "Ez a lemezen megváltozott fájl; ide mentve felülírná azokat a változásokat.";
 "Reload from Disk" = "Újratöltés a lemezről";
 "(my version)" = "(saját változat)";
+"Edit Lines…" = "Sorok szerkesztése…";
+"Save" = "Mentés";
+"These lines changed on disk. Cancel and open them again to edit the current text." = "Ezek a sorok megváltoztak a lemezen. Szakítsa meg, és nyissa meg őket újra az aktuális szöveg szerkesztéséhez.";
+"Some characters don't exist in the file's encoding." = "Néhány karakter nem létezik a fájl kódolásában.";
+"Lines can't be edited in this file's encoding." = "Ennek a fájlnak a kódolásában a sorok nem szerkeszthetők.";

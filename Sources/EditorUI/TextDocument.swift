@@ -243,6 +243,27 @@ public final class TextDocument: NSDocument {
         }
     }
 
+    // MARK: Editing lines of a large file
+
+    /// Writes `text` over `chunk` in the file off the main thread (a big
+    /// file is a long copy), then reads the whole file again: an edit of the
+    /// same length looks like nothing happened to the tail.
+    func writeLines(_ text: String, over chunk: LineSplice.Chunk, completion: @escaping (Error?) -> Void) {
+        guard let fileURL, model != nil else { return completion(CocoaError(.fileNoSuchFile)) }
+        let replacement = LineSplice.matchingLineBreaks(text, original: chunk.text)
+        DispatchQueue.global(qos: .userInitiated).async {
+            var failure: Error?
+            do { try LineSplice.write(replacement, over: chunk, to: fileURL) } catch { failure = error }
+            DispatchQueue.main.async {
+                if failure == nil {
+                    self.tail = nil
+                    self.scheduleDiskCheck()
+                }
+                completion(failure)
+            }
+        }
+    }
+
     // MARK: Printing
 
     /// The text as plain text in the editor font, wrapped to the page width.
