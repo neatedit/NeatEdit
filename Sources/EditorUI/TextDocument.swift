@@ -184,7 +184,22 @@ public final class TextDocument: NSDocument {
         windowController.windowFrameAutosaveName = "EditorWindow"
         windowController.shouldCascadeWindows = true
         addWindowController(windowController)
+        if let fileURL { (controller as? DocumentContent)?.pendingPosition = Preferences.filePosition(for: fileURL) }
         watchForAppends()
+    }
+
+    // Closing a window takes its controller off before close() runs.
+    override public func removeWindowController(_ windowController: NSWindowController) {
+        savePosition()
+        super.removeWindowController(windowController)
+    }
+
+    /// Remembers where the file is, for the next time it opens. A tab that
+    /// never appeared is still where it was left.
+    func savePosition() {
+        guard let fileURL, let content = windowControllers.first?.contentViewController as? DocumentContent,
+              content.isViewLoaded, content.pendingPosition == nil else { return }
+        Preferences.remember(content.currentPosition, for: fileURL)
     }
 
     /// Saved under a new name: follow that file from its next read.
@@ -498,6 +513,7 @@ public final class TextDocument: NSDocument {
     }
 
     override public func close() {
+        savePosition()
         appendWatcher?.cancel()
         appendWatcher = nil
         super.close()

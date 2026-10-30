@@ -1,4 +1,5 @@
 import AppKit
+import EditorCore
 
 /// App-wide settings kept in UserDefaults. Changes are broadcast so every
 /// open tab follows along.
@@ -16,6 +17,7 @@ public enum Preferences {
     private static let unwrapPasteKey = "unwrapPastedText"
     private static let invisiblesKey = "showInvisibles"
     private static let currentLineKey = "highlightCurrentLine"
+    private static let filePositionsKey = "filePositions"
     static let defaultFontSize: CGFloat = 13
 
     public static func registerDefaults() {
@@ -76,6 +78,22 @@ public enum Preferences {
     public static var unwrapsPastedText: Bool {
         get { defaults.bool(forKey: unwrapPasteKey) }
         set { set(newValue, forKey: unwrapPasteKey) }
+    }
+
+    private static var filePositions: FilePositions {
+        get {
+            defaults.data(forKey: filePositionsKey).flatMap { try? JSONDecoder().decode(FilePositions.self, from: $0) } ?? FilePositions()
+        }
+        // Not a setting anyone sees: no didChange.
+        set { defaults.set(try? JSONEncoder().encode(newValue), forKey: filePositionsKey) }
+    }
+
+    static func filePosition(for url: URL) -> FilePosition? {
+        filePositions.position(for: url.resolvingSymlinksInPath().path)
+    }
+
+    static func remember(_ position: FilePosition, for url: URL) {
+        filePositions.set(position, for: url.resolvingSymlinksInPath().path)
     }
 
     /// Only fixed-pitch fonts: the large file viewer lays text out on a grid.
