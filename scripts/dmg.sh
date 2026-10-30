@@ -1,5 +1,5 @@
 #!/bin/sh
-# Builds build/NeatEdit-<version>.dmg for direct download: the sandboxed app,
+# Builds build/NeatEdit.dmg for direct download: the sandboxed app,
 # signed with Developer ID, notarized by Apple and stapled.
 # Needs xcodegen, create-dmg and the GTD team account signed in to Xcode.
 # Resources/dmg-background.tiff comes from scripts/make-dmg-background.swift.
@@ -8,8 +8,8 @@ cd "$(dirname "$0")/.."
 
 ARCHIVE=build/NeatEdit-dmg.xcarchive
 EXPORT=build/dmg-export
-VERSION=$(plutil -extract CFBundleShortVersionString raw Resources/Info.plist)
-DMG=build/NeatEdit-$VERSION.dmg
+# A fixed name, so the site can always link to the latest release.
+DMG=build/NeatEdit.dmg
 
 xcodegen generate --quiet
 rm -rf "$ARCHIVE" "$EXPORT" "$DMG"

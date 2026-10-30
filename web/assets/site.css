@@ -10,6 +10,9 @@
   --on-slate-muted: #aab0bd;
   --amber: #b86e00;
   --caret: #ffa62b;
+  --button: #2a303c;
+  --button-hover: #1f2430;
+  --on-button: #f4f3ef;
   --shadow: 0 24px 60px -28px rgba(31, 36, 48, .45);
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
 }
@@ -22,6 +25,9 @@
     --line: #333844;
     --slate: #20242c;
     --amber: #ffb84d;
+    --button: #ffb84d;
+    --button-hover: #ffc56e;
+    --on-button: #1f2430;
     --shadow: 0 24px 60px -28px rgba(0, 0, 0, .8);
   }
 }
@@ -59,6 +65,11 @@ h1 { font-size: clamp(36px, 6vw, 60px); line-height: 1.08; letter-spacing: -.03e
 .availability { margin-top: 24px; font-size: 15px; color: var(--muted); }
 .availability strong { color: var(--ink); }
 
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-top: 28px; }
+.button { display: inline-block; padding: 12px 22px; border-radius: 10px; background: var(--button); color: var(--on-button); font-weight: 650; text-decoration: none; }
+.button:hover { background: var(--button-hover); }
+.source { color: var(--ink); font-weight: 600; }
+
 /* Screenshots */
 .window { border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); }
 .titlebar { display: flex; align-items: center; gap: 7px; height: 34px; padding: 0 13px; background: var(--panel); border-bottom: 1px solid var(--line); }
@@ -93,8 +104,7 @@ section > .wrap > p.intro { color: var(--muted); font-size: 18px; max-width: 36e
 .page p, .page li { margin-top: 10px; }
 .page ul { padding-left: 1.2em; }
 .page .updated { color: var(--muted); font-size: 15px; margin-top: 10px; }
-.contact { display: inline-block; margin-top: 18px; padding: 12px 20px; border-radius: 10px; background: var(--slate); color: var(--on-slate); font-weight: 600; text-decoration: none; }
-.contact:hover { background: #1f2430; }
+.contact { margin-top: 18px; }
 kbd { padding: 1px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel); white-space: nowrap; }
 
 /* Footer */
