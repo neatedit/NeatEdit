@@ -1,6 +1,6 @@
 # NeatEdit
 
-A small, native macOS plain-text editor (Swift + AppKit, no dependencies).
+A small, native macOS plain-text editor (Swift + AppKit, no dependencies). Free and open source under the [MIT licence](LICENSE). Website: https://neatedit.gt-d.cz
 
 - Tabs are native macOS window tabs (⌘T / ⌘N). Unsaved tabs survive quitting — no "Save?" prompts.
 - Paste always inserts plain text exactly at the caret. Text copied from a terminal UI (hard-wrapped at the window width, with a left margin — e.g. Claude Code output) is unwrapped back into paragraphs; lists, headings, tables and fenced code keep their lines. The unwrap is its own undo step: one ⌘Z gives the text exactly as copied. Turn it off with Edit ▸ Unwrap Pasted Text; Text ▸ Unwrap Lines does it on demand.
