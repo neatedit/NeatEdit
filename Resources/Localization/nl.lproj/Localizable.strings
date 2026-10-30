@@ -171,3 +171,4 @@
 "These lines changed on disk. Cancel and open them again to edit the current text." = "Deze regels zijn op de schijf gewijzigd. Annuleer en open ze opnieuw om de huidige tekst te wijzigen.";
 "Some characters don't exist in the file's encoding." = "Sommige tekens bestaan niet in de codering van het bestand.";
 "Lines can't be edited in this file's encoding." = "Regels kunnen niet worden gewijzigd in de codering van dit bestand.";
+"Syntax Highlighting" = "Syntaxismarkering";

@@ -157,7 +157,8 @@ final class LargeFileViewController: NSViewController, TailFollowing, NSMenuItem
         if menuItem.action == #selector(toggleLineNumbers(_:)) {
             menuItem.state = Preferences.viewerShowsLineNumbers ? .on : .off
         }
-        // Lines never wrap in the viewer.
+        // Lines never wrap or get coloured in the viewer.
         return menuItem.action != #selector(EditorViewController.toggleWrapLines(_:))
+            && menuItem.action != #selector(EditorViewController.toggleSyntaxHighlighting(_:))
     }
 }

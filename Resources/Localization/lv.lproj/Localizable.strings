@@ -171,3 +171,4 @@
 "These lines changed on disk. Cancel and open them again to edit the current text." = "Šīs rindas diskā ir mainījušās. Atceliet un atveriet tās vēlreiz, lai rediģētu pašreizējo tekstu.";
 "Some characters don't exist in the file's encoding." = "Dažas rakstzīmes faila kodējumā nepastāv.";
 "Lines can't be edited in this file's encoding." = "Šī faila kodējumā rindas nevar rediģēt.";
+"Syntax Highlighting" = "Sintakses izcelšana";

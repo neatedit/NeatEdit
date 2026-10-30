@@ -171,3 +171,4 @@
 "These lines changed on disk. Cancel and open them again to edit the current text." = "Nämä rivit ovat muuttuneet levyllä. Kumoa ja avaa ne uudelleen muokataksesi nykyistä tekstiä.";
 "Some characters don't exist in the file's encoding." = "Joitakin merkkejä ei ole tiedoston merkistökoodauksessa.";
 "Lines can't be edited in this file's encoding." = "Tämän tiedoston merkistökoodauksessa rivejä ei voi muokata.";
+"Syntax Highlighting" = "Syntaksin korostus";

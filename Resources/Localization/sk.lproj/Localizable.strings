@@ -171,3 +171,4 @@
 "These lines changed on disk. Cancel and open them again to edit the current text." = "Tieto riadky sa na disku zmenili. Zrušte a otvorte ich znova, aby ste upravili aktuálny text.";
 "Some characters don't exist in the file's encoding." = "Niektoré znaky v kódovaní súboru neexistujú.";
 "Lines can't be edited in this file's encoding." = "V kódovaní tohto súboru nie je možné upravovať riadky.";
+"Syntax Highlighting" = "Zvýrazňovanie syntaxe";
