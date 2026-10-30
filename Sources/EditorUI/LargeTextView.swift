@@ -28,17 +28,25 @@ final class LargeTextView: NSView, NSMenuItemValidation {
         didSet { if showsInvisibles != oldValue { needsDisplay = true } }
     }
 
+    /// A gutter inside the view rather than an NSRulerView: the rows' geometry
+    /// stays this view's own, and text never slides under a ruler.
+    var showsLineNumbers = Preferences.viewerShowsLineNumbers {
+        didSet { if showsLineNumbers != oldValue { updateGutter() } }
+    }
+
     private var font: NSFont
     private var anchor = NSRange(location: 0, length: 0)
     private var preferredColumn: Int?
     private var longestLine: Int
+    private var gutterX: CGFloat = 0
 
     init(model: EditorModel, font: NSFont = Preferences.font) {
         self.model = model
         self.font = font
-        layout = Self.layout(for: font)
+        layout = Self.layout(for: font, gutter: 0)
         longestLine = model.lineIndex.longestLine(textLength: model.storage.length)
         super.init(frame: .zero)
+        layout = Self.layout(for: font, gutter: gutterWidth)
     }
 
     @available(*, unavailable)
@@ -58,7 +66,7 @@ final class LargeTextView: NSView, NSMenuItemValidation {
     func replaceModel(_ newModel: EditorModel) {
         model = newModel
         longestLine = newModel.lineIndex.longestLine(textLength: newModel.storage.length)
-        updateFrameSize()
+        updateGutter()
         setSelection(NSRange(location: min(selection.location, newModel.storage.length), length: 0))
     }
 
@@ -69,22 +77,38 @@ final class LargeTextView: NSView, NSMenuItemValidation {
     func textDidGrow(from oldLength: Int, follow: Bool) {
         let firstNewLine = model.lineIndex.line(containing: max(oldLength - 1, 0))
         longestLine = max(longestLine, model.lineIndex.longestLine(textLength: model.storage.length, from: firstNewLine))
-        updateFrameSize()
+        updateGutter()
         needsDisplay = true
         if follow { scrollToEndOfDocument(nil) }
     }
 
     func setFont(_ newFont: NSFont) {
         font = newFont
-        layout = Self.layout(for: newFont)
+        updateGutter()
+    }
+
+    /// Room for the widest number (at least two digits) plus padding; 0 when off.
+    var gutterWidth: CGFloat {
+        guard showsLineNumbers else { return 0 }
+        let digits = max(String(model.lineIndex.lineCount).count, 2)
+        let digitWidth = ("0" as NSString).size(withAttributes: [.font: gutterFont]).width
+        return ceil(CGFloat(digits) * digitWidth + 12)
+    }
+
+    private var gutterFont: NSFont {
+        NSFont(descriptor: font.fontDescriptor, size: max(font.pointSize - 2, 8)) ?? font
+    }
+
+    private func updateGutter() {
+        layout = Self.layout(for: font, gutter: gutterWidth)
         updateFrameSize()
         needsDisplay = true
     }
 
-    private static func layout(for font: NSFont) -> ViewerLayout {
+    private static func layout(for font: NSFont, gutter: CGFloat) -> ViewerLayout {
         let lineHeight = NSLayoutManager().defaultLineHeight(for: font).rounded(.up)
         let charWidth = ("0" as NSString).size(withAttributes: [.font: font]).width
-        return ViewerLayout(lineHeight: lineHeight, charWidth: charWidth, inset: CGSize(width: 4, height: 6))
+        return ViewerLayout(lineHeight: lineHeight, charWidth: charWidth, inset: CGSize(width: gutter + 4, height: 6))
     }
 
     private func updateFrameSize() {
@@ -98,13 +122,24 @@ final class LargeTextView: NSView, NSMenuItemValidation {
         updateFrameSize()
         // Fill the scroll view as the window resizes, not just its first size.
         NotificationCenter.default.removeObserver(self, name: NSView.frameDidChangeNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: NSView.boundsDidChangeNotification, object: nil)
         guard let clip = enclosingScrollView?.contentView else { return }
         clip.postsFrameChangedNotifications = true
         NotificationCenter.default.addObserver(
             self, selector: #selector(clipDidResize), name: NSView.frameDidChangeNotification, object: clip)
+        clip.postsBoundsChangedNotifications = true
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(clipDidScroll), name: NSView.boundsDidChangeNotification, object: clip)
     }
 
     @objc private func clipDidResize() { updateFrameSize() }
+
+    /// The gutter stays at the left edge, so a sideways scroll moves it in the view.
+    @objc private func clipDidScroll() {
+        guard visibleRect.minX != gutterX else { return }
+        gutterX = visibleRect.minX
+        needsDisplay = true
+    }
 
     // MARK: Line geometry
 
@@ -203,6 +238,33 @@ final class LargeTextView: NSView, NSMenuItemValidation {
                 NSRect(x: run.x(forOffset: selection.location), y: row.minY, width: 1, height: row.height).fill()
             }
         }
+        drawGutter(lines: lines, in: dirtyRect)
+    }
+
+    /// 1-based numbers of the lines on screen, with the top of each row.
+    func visibleLineNumbers() -> [(line: Int, y: CGFloat)] {
+        guard showsLineNumbers else { return [] }
+        return layout.lines(in: visibleRect, lineCount: model.lineIndex.lineCount)
+            .map { ($0 + 1, layout.lineRect($0, width: 0).minY) }
+    }
+
+    private func drawGutter(lines: Range<Int>, in dirtyRect: NSRect) {
+        let width = gutterWidth
+        guard width > 0 else { return }
+        let x = visibleRect.minX
+        // Over the text, which slides under it when scrolled sideways.
+        NSColor.textBackgroundColor.setFill()
+        NSRect(x: x, y: dirtyRect.minY, width: width, height: dirtyRect.height).fill()
+        NSColor.separatorColor.setFill()
+        NSRect(x: x + width - 1, y: dirtyRect.minY, width: 1, height: dirtyRect.height).fill(using: .sourceOver)
+        let attributes: [NSAttributedString.Key: Any] = [.font: gutterFont, .foregroundColor: NSColor.secondaryLabelColor]
+        for line in lines {
+            let label = String(line + 1) as NSString
+            let size = label.size(withAttributes: attributes)
+            let row = layout.lineRect(line, width: 0)
+            label.draw(at: NSPoint(x: x + width - size.width - 6, y: row.minY + (row.height - size.height) / 2),
+                       withAttributes: attributes)
+        }
     }
 
     /// Marks over the typeset part of the line, and its line end when shown.
@@ -241,7 +303,13 @@ final class LargeTextView: NSView, NSMenuItemValidation {
 
     private func scrollToCaret() {
         guard enclosingScrollView != nil else { return }
-        scrollToVisible(caretRect(for: selection.location).insetBy(dx: -layout.charWidth * 4, dy: 0))
+        scrollToVisible(clearOfGutter(caretRect(for: selection.location).insetBy(dx: -layout.charWidth * 4, dy: 0)))
+    }
+
+    /// A rect to scroll to, with room on its left for the gutter that covers the text there.
+    private func clearOfGutter(_ rect: NSRect) -> NSRect {
+        let width = gutterWidth
+        return NSRect(x: rect.minX - width, y: rect.minY, width: rect.width + width, height: rect.height)
     }
 
     func select(at point: NSPoint, granularity: Granularity, extending: Bool) {
@@ -464,7 +532,7 @@ final class LargeTextView: NSView, NSMenuItemValidation {
         let start = caretRect(for: range.location)
         // Put the match a third of the way down rather than at the very edge.
         let target = NSRect(x: start.minX, y: start.minY - visibleRect.height / 3, width: 1, height: visibleRect.height / 3 * 2)
-        scrollToVisible(target.insetBy(dx: -layout.charWidth * 8, dy: 0))
+        scrollToVisible(clearOfGutter(target.insetBy(dx: -layout.charWidth * 8, dy: 0)))
     }
 }
 

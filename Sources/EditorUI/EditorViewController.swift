@@ -260,7 +260,7 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
             return
         }
         if lineNumberRuler == nil {
-            let ruler = LineNumberRuler(textView: textView) { [unowned self] in self.model }
+            let ruler = LineNumberRuler(textView: textView) { [unowned self] in self.model.lineIndex }
             scrollView.verticalRulerView = ruler
             scrollView.hasVerticalRuler = true
             lineNumberRuler = ruler

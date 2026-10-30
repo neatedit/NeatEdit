@@ -75,6 +75,7 @@ final class LargeFileViewController: NSViewController, TailFollowing, NSMenuItem
         textView.setFont(Preferences.font)
         textView.showsInvisibles = Preferences.showsInvisibles
         textView.highlightsCurrentLine = Preferences.highlightsCurrentLine
+        textView.showsLineNumbers = Preferences.viewerShowsLineNumbers
     }
 
     /// Lines around the caret (or the selected lines) with this many on each side.
@@ -95,6 +96,7 @@ final class LargeFileViewController: NSViewController, TailFollowing, NSMenuItem
         presentAsSheet(editor)
     }
 
+    @objc func toggleLineNumbers(_ sender: Any?) { Preferences.viewerShowsLineNumbers.toggle() }
     @objc func toggleInvisibles(_ sender: Any?) { Preferences.showsInvisibles.toggle() }
     @objc func toggleCurrentLine(_ sender: Any?) { Preferences.highlightsCurrentLine.toggle() }
 
@@ -145,8 +147,10 @@ final class LargeFileViewController: NSViewController, TailFollowing, NSMenuItem
         if menuItem.action == #selector(toggleCurrentLine(_:)) {
             menuItem.state = Preferences.highlightsCurrentLine ? .on : .off
         }
-        // Lines never wrap or get numbered in the viewer.
+        if menuItem.action == #selector(toggleLineNumbers(_:)) {
+            menuItem.state = Preferences.viewerShowsLineNumbers ? .on : .off
+        }
+        // Lines never wrap in the viewer.
         return menuItem.action != #selector(EditorViewController.toggleWrapLines(_:))
-            && menuItem.action != #selector(EditorViewController.toggleLineNumbers(_:))
     }
 }

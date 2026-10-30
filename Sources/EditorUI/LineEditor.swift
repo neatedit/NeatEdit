@@ -8,6 +8,7 @@ final class LineEditorController: NSViewController {
     let textView = PlainTextView.make(text: "")
     let titleLabel = NSTextField(labelWithString: "")
     let errorLabel = NSTextField(wrappingLabelWithString: "")
+    private(set) var lineNumberRuler: LineNumberRuler?
     /// Writes the edited text and calls back with nil, or the reason to stay open.
     var onSave: ((String, @escaping (Error?) -> Void) -> Void)?
     private let spinner = NSProgressIndicator()
@@ -36,6 +37,14 @@ final class LineEditorController: NSViewController {
         scroll.hasVerticalScroller = true
         scroll.borderType = .bezelBorder
         scroll.documentView = textView
+        let textView = textView
+        let ruler = LineNumberRuler(textView: textView, firstLine: chunk.firstLine) { [unowned textView] in
+            LineIndex(textView.string as NSString)
+        }
+        scroll.verticalRulerView = ruler
+        scroll.hasVerticalRuler = true
+        scroll.rulersVisible = true
+        lineNumberRuler = ruler
         scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 320).isActive = true
         scroll.widthAnchor.constraint(greaterThanOrEqualToConstant: 640).isActive = true
 

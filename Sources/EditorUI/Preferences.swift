@@ -12,6 +12,7 @@ public enum Preferences {
     private static let fontNameKey = "fontName"
     private static let wrapKey = "wrapLines"
     private static let lineNumbersKey = "showLineNumbers"
+    private static let viewerLineNumbersKey = "viewerShowLineNumbers"
     private static let unwrapPasteKey = "unwrapPastedText"
     private static let invisiblesKey = "showInvisibles"
     private static let currentLineKey = "highlightCurrentLine"
@@ -22,6 +23,7 @@ public enum Preferences {
             fontSizeKey: Double(defaultFontSize),
             wrapKey: false,
             lineNumbersKey: false,
+            viewerLineNumbersKey: true,
             unwrapPasteKey: true,
             invisiblesKey: false,
             currentLineKey: true,
@@ -50,6 +52,12 @@ public enum Preferences {
     public static var showsLineNumbers: Bool {
         get { defaults.bool(forKey: lineNumbersKey) }
         set { set(newValue, forKey: lineNumbersKey) }
+    }
+
+    /// The large file viewer's own setting: a log is read by its line numbers.
+    public static var viewerShowsLineNumbers: Bool {
+        get { defaults.bool(forKey: viewerLineNumbersKey) }
+        set { set(newValue, forKey: viewerLineNumbersKey) }
     }
 
     /// Marks for spaces, tabs and line ends.

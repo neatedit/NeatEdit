@@ -3,17 +3,21 @@ import EditorCore
 
 /// Gutter with logical line numbers. Only lines starting in the visible rect
 /// are looked at, so it costs the same on a 5-line and a 20 MB document.
+/// `firstLine` is the number of lines before the text, for a piece of a bigger file.
 final class LineNumberRuler: NSRulerView {
     private weak var textView: PlainTextView?
-    private let model: () -> EditorModel
+    private let lineIndex: () -> LineIndex
+    private let firstLine: Int
     private var digits = 0
     private var measuredSize: CGFloat = 0
 
-    init(textView: PlainTextView, model: @escaping () -> EditorModel) {
+    init(textView: PlainTextView, firstLine: Int = 0, lineIndex: @escaping () -> LineIndex) {
         self.textView = textView
-        self.model = model
+        self.lineIndex = lineIndex
+        self.firstLine = firstLine
         super.init(scrollView: textView.enclosingScrollView, orientation: .verticalRuler)
         clientView = textView
+        clipsToBounds = true  // numbers past the last row stay inside the scroll view
         NotificationCenter.default.addObserver(
             self, selector: #selector(textDidChange), name: NSText.didChangeNotification, object: textView)
         updateThickness()
@@ -34,7 +38,7 @@ final class LineNumberRuler: NSRulerView {
 
     /// Room for the widest number (at least two digits) plus padding.
     func updateThickness() {
-        let count = max(String(model().lineIndex.lineCount).count, 2)
+        let count = max(String(firstLine + lineIndex().lineCount).count, 2)
         let font = labelFont
         guard count != digits || font.pointSize != measuredSize || ruleThickness == 0 else { return }
         digits = count
@@ -48,13 +52,13 @@ final class LineNumberRuler: NSRulerView {
     func visibleNumbers() -> [(line: Int, y: CGFloat)] {
         guard let textView, let layoutManager = textView.layoutManager,
               let container = textView.textContainer else { return [] }
-        let model = model()
-        let starts = model.lineIndex.starts
-        let length = model.storage.length
+        let index = lineIndex()
+        let starts = index.starts
+        let length = layoutManager.textStorage?.length ?? 0
         let glyphs = layoutManager.glyphRange(forBoundingRect: textView.visibleRect, in: container)
         let chars = layoutManager.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
 
-        var line = model.lineIndex.line(containing: chars.location)
+        var line = index.line(containing: chars.location)
         if starts[line] < chars.location { line += 1 }  // its number is above the view
         var result: [(line: Int, y: CGFloat)] = []
         while line < starts.count, starts[line] <= NSMaxRange(chars) {
@@ -62,7 +66,7 @@ final class LineNumberRuler: NSRulerView {
             let rect = start < length
                 ? layoutManager.lineFragmentRect(forGlyphAt: layoutManager.glyphIndexForCharacter(at: start), effectiveRange: nil)
                 : layoutManager.extraLineFragmentRect
-            result.append((line + 1, rect.minY + textView.textContainerOrigin.y))
+            result.append((firstLine + line + 1, rect.minY + textView.textContainerOrigin.y))
             line += 1
         }
         return result
