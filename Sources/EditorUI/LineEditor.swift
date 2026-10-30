@@ -11,6 +11,7 @@ final class LineEditorController: NSViewController {
     private(set) var lineNumberRuler: LineNumberRuler?
     /// Writes the edited text and calls back with nil, or the reason to stay open.
     var onSave: ((String, @escaping (Error?) -> Void) -> Void)?
+    private var lineIndex: LineIndex?
     private let spinner = NSProgressIndicator()
     private var buttons: [NSButton] = []
 
@@ -37,10 +38,12 @@ final class LineEditorController: NSViewController {
         scroll.hasVerticalScroller = true
         scroll.borderType = .bezelBorder
         scroll.documentView = textView
-        let textView = textView
-        let ruler = LineNumberRuler(textView: textView, firstLine: chunk.firstLine) { [unowned textView] in
-            LineIndex(textView.string as NSString)
+        let ruler = LineNumberRuler(textView: textView, firstLine: chunk.firstLine) { [weak self] in
+            self?.currentLineIndex ?? LineIndex("")
         }
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(textStorageDidEdit),
+            name: NSTextStorage.didProcessEditingNotification, object: textView.textStorage)
         scroll.verticalRulerView = ruler
         scroll.hasVerticalRuler = true
         scroll.rulersVisible = true
@@ -67,6 +70,16 @@ final class LineEditorController: NSViewController {
         scroll.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -32).isActive = true
         view = stack
     }
+
+    /// Counted once per edit: a selection of many lines can make this a lot of text.
+    private var currentLineIndex: LineIndex {
+        if let lineIndex { return lineIndex }
+        let index = LineIndex(textView.string as NSString)
+        lineIndex = index
+        return index
+    }
+
+    @objc private func textStorageDidEdit() { lineIndex = nil }
 
     override func viewDidAppear() {
         super.viewDidAppear()

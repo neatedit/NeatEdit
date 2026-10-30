@@ -109,6 +109,42 @@ final class ViewerLineNumbersTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(view.layout.inset.width, view.visibleRect.minX + view.gutterWidth, "back at the start")
     }
 
+    func testAClickOnTheGutterLandsOnTheFirstVisibleColumn() throws {
+        let long = String(repeating: "x", count: 2000) + "\n" + log
+        let (document, controller) = try openViewer(long)
+        defer { document.close() }
+        let view = controller.textView
+        view.setSelection(NSRange(location: 2000, length: 0))
+        let left = view.visibleRect.minX
+        XCTAssertGreaterThan(left, 0, "scrolled sideways")
+        let row = view.lineRect(forLine: 0)
+        XCTAssertEqual(view.offset(at: NSPoint(x: left + 2, y: row.midY)),
+                       view.offset(at: NSPoint(x: left + view.gutterWidth, y: row.midY)))
+    }
+
+    func testTheGutterIsOnlyCountedOnceInTheDocumentWidth() throws {
+        let (document, controller) = try openViewer(log)
+        defer { document.close() }
+        let view = controller.textView
+        let numbered = view.documentSize.width
+        let gutter = view.gutterWidth
+        view.showsLineNumbers = false
+        XCTAssertEqual(numbered - view.documentSize.width, gutter, accuracy: 0.5)
+    }
+
+    func testTheSheetsNumbersFollowALineBreakOfTheSameLength() throws {
+        let (document, controller) = try openViewer(log)
+        defer { document.close() }
+        controller.editLines(nil)
+        let editor = try XCTUnwrap(controller.presentedViewControllers?.first as? LineEditorController)
+        defer { editor.cancel(nil) }
+        editor.view.window?.layoutIfNeeded()
+        let ruler = try XCTUnwrap(editor.lineNumberRuler)
+        let before = ruler.visibleNumbers().map(\.line)
+        editor.textView.textStorage?.replaceCharacters(in: NSRange(location: 2, length: 1), with: "\n")
+        XCTAssertEqual(ruler.visibleNumbers().map(\.line).count, before.count + 1)
+    }
+
     func testTheSheetNumbersLinesAsInTheFile() throws {
         let (document, controller) = try openViewer(log)
         defer { document.close() }

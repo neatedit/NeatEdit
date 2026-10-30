@@ -60,7 +60,10 @@ final class LargeTextView: NSView, NSMenuItemValidation {
     private var navigator: TextNavigator { TextNavigator(text: text, lineIndex: model.lineIndex) }
 
     var documentSize: NSSize {
-        layout.documentSize(lineCount: model.lineIndex.lineCount, longestLine: longestLine)
+        // The inset counts on both sides; the gutter only takes the left.
+        var size = layout.documentSize(lineCount: model.lineIndex.lineCount, longestLine: longestLine)
+        size.width -= gutterWidth
+        return size
     }
 
     func replaceModel(_ newModel: EditorModel) {
@@ -180,6 +183,9 @@ final class LargeTextView: NSView, NSMenuItemValidation {
     }
 
     func offset(at point: NSPoint) -> Int {
+        var point = point
+        // The gutter covers the text behind it.
+        if gutterWidth > 0 { point.x = max(point.x, visibleRect.minX + gutterWidth) }
         let lineCount = model.lineIndex.lineCount
         if point.y < layout.inset.height { return 0 }
         if point.y >= layout.inset.height + CGFloat(lineCount) * layout.lineHeight { return text.length }

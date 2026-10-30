@@ -22,6 +22,7 @@ final class LargeTextViewTests: XCTestCase {
 
     func testDocumentSizeFollowsLinesAndLongestLine() {
         let view = makeView("ab\nabcdef\nx")
+        view.showsLineNumbers = false
         let expected = view.layout.documentSize(lineCount: 3, longestLine: 7)  // longest line incl. its break
         XCTAssertEqual(view.documentSize, expected)
     }
