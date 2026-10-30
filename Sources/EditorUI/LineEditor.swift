@@ -12,11 +12,17 @@ final class LineEditorController: NSViewController {
     /// Writes the edited text and calls back with nil, or the reason to stay open.
     var onSave: ((String, @escaping (Error?) -> Void) -> Void)?
     private var lineIndex: LineIndex?
+    private let startSelection: NSRange
     private let spinner = NSProgressIndicator()
     private var buttons: [NSButton] = []
 
-    init(chunk: LineSplice.Chunk) {
+    /// `selection` is in the viewer's text: the caret starts where it was there.
+    init(chunk: LineSplice.Chunk, selection: NSRange = NSRange(location: 0, length: 0)) {
         self.chunk = chunk
+        let start = NSIntersectionRange(selection, chunk.range)
+        startSelection = selection.length > 0 && start.length > 0
+            ? NSRange(location: start.location - chunk.range.location, length: start.length)
+            : NSRange(location: min(max(selection.location - chunk.range.location, 0), chunk.range.length), length: 0)
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -30,6 +36,7 @@ final class LineEditorController: NSViewController {
         errorLabel.isHidden = true
 
         textView.string = chunk.text
+        textView.setSelectedRange(startSelection)
         textView.minSize = .zero
         textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         textView.isVerticallyResizable = true
@@ -85,6 +92,7 @@ final class LineEditorController: NSViewController {
         super.viewDidAppear()
         textView.wrapsLines = false
         view.window?.makeFirstResponder(textView)
+        textView.scrollRangeToVisible(startSelection)
     }
 
     /// Whether a save is running (the sheet can't be dismissed meanwhile).
