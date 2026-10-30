@@ -41,7 +41,7 @@ The Mac App Store build is sandboxed and signed with the GTD team (`com.gtd.Neat
 For direct download, outside the App Store:
 
 ```sh
-./scripts/dmg.sh              # → build/NeatEdit-<version>.dmg, signed with Developer ID, notarized and stapled
+./scripts/dmg.sh              # → build/NeatEdit-<version>.dmg, signed with Developer ID, notarized and stapled (needs `brew install create-dmg`)
 ```
 
 ## Website

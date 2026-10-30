@@ -1,7 +1,8 @@
 #!/bin/sh
 # Builds build/NeatEdit-<version>.dmg for direct download: the sandboxed app,
 # signed with Developer ID, notarized by Apple and stapled.
-# Needs xcodegen and the GTD team account signed in to Xcode.
+# Needs xcodegen, create-dmg and the GTD team account signed in to Xcode.
+# Resources/dmg-background.tiff comes from scripts/make-dmg-background.swift.
 set -eu
 cd "$(dirname "$0")/.."
 
@@ -35,7 +36,10 @@ spctl --assess --type execute --verbose=2 "$APP"
 FOLDER=$(mktemp -d -t neatedit-dmg)
 trap 'rm -rf "$FOLDER"' EXIT
 ditto "$APP" "$FOLDER/NeatEdit.app"
-ln -s /Applications "$FOLDER/Applications"
-hdiutil create -quiet -volname NeatEdit -srcfolder "$FOLDER" -format UDZO -ov "$DMG"
+# The layout is set through Finder, which macOS may ask permission for once.
+create-dmg --volname NeatEdit --volicon Resources/AppIcon.icns \
+    --background Resources/dmg-background.tiff --window-pos 200 120 --window-size 620 420 \
+    --icon-size 128 --icon NeatEdit.app 160 235 --app-drop-link 460 235 \
+    --hide-extension NeatEdit.app --no-internet-enable "$DMG" "$FOLDER"
 hdiutil verify -quiet "$DMG"
 shasum -a 256 "$DMG"
