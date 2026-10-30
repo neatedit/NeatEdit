@@ -38,6 +38,12 @@ The Mac App Store build is sandboxed and signed with the GTD team (`com.gtd.Neat
 ./scripts/app-store.sh export # same, but only writes build/export/NeatEdit.pkg
 ```
 
+For direct download, outside the App Store:
+
+```sh
+./scripts/dmg.sh              # → build/NeatEdit-<version>.dmg, signed with Developer ID, notarized and stapled
+```
+
 ## Website
 
 `web/` is the static site at https://neatedit.gt-d.cz (home, features, support, privacy policy), served by nginx from `/var/www/neatedit` on the shared server. Commit it, then:
