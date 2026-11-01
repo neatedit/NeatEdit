@@ -107,9 +107,11 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
         model.storage.removeLayoutManager(textView.layoutManager!)
         newModel.storage.addLayoutManager(textView.layoutManager!)
         model = newModel
-        attach(newModel)
+        // Before `attach`, which reads the selection for the status bar.
         let location = min(selection.location, newModel.storage.length)
         textView.setSelectedRange(NSRange(location: location, length: 0))
+        attach(newModel)
+        findController.textWasReplaced()
         syntaxColoring.textDidChange()
     }
 
@@ -256,6 +258,9 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
 
     private func attach(_ model: EditorModel) {
         model.onTotalsChanged = { [weak self] in self?.updateStatus() }
+        model.onTextEdited = { [weak self] range, delta in
+            self?.findController.textEdited(range, changeInLength: delta)
+        }
         let isLarge = model.storage.length > Self.largeDocumentLimit
         textView.layoutManager?.backgroundLayoutEnabled = !isLarge
         updateStatus()

@@ -13,6 +13,8 @@ public final class EditorModel: NSObject, NSTextStorageDelegate {
 
     /// Called on the main thread when totals finished counting in the background.
     public var onTotalsChanged: (() -> Void)?
+    /// Characters changed, other than by `append`: the new text's range and the change in length.
+    var onTextEdited: ((NSRange, Int) -> Void)?
 
     private var totalCharacters: CharacterCount?
     private var countGeneration = 0
@@ -79,6 +81,7 @@ public final class EditorModel: NSObject, NSTextStorageDelegate {
         editCount += 1
         totalCharacters = nil
         appendedDuringCount = nil
+        onTextEdited?(editedRange, delta)
     }
 
     /// Adds text at the end (a log being written), updating the totals
