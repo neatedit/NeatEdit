@@ -34,7 +34,8 @@ final class StatusBar: NSStackView {
     var canChangeLineEnding = true {
         didSet { lineEndingButton.isEnabled = canChangeLineEnding }
     }
-    private var lineEnding = LineEnding.lf
+    /// Nil when the text mixes them: no choice in the menu is checked.
+    private var lineEnding: LineEnding? = .lf
     private var updatePending = false
 
     init() {
@@ -55,8 +56,8 @@ final class StatusBar: NSStackView {
         left.stringValue = status.left
         right.stringValue = status.totals
         encodingButton.title = status.encoding
-        lineEndingButton.title = status.lineEnding.rawValue
-        lineEnding = status.lineEnding
+        lineEndingButton.title = status.lineEndingTitle
+        lineEnding = status.hasMixedEndings ? nil : status.lineEnding
     }
 
     /// Everything on the right as one string, as the status bar reads.

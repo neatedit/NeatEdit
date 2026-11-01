@@ -172,3 +172,4 @@
 "Some characters don't exist in the file's encoding." = "Alcuni caratteri non esistono nella codifica del file.";
 "Lines can't be edited in this file's encoding." = "Non è possibile modificare le righe nella codifica di questo file.";
 "Syntax Highlighting" = "Evidenziazione della sintassi";
+"Mixed" = "Misti";

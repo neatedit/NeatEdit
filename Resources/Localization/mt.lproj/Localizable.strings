@@ -172,3 +172,4 @@
 "Some characters don't exist in the file's encoding." = "Xi karattri ma jeżistux fl-encoding tal-fajl.";
 "Lines can't be edited in this file's encoding." = "Il-linji ma jistgħux jiġu editjati fl-encoding ta’ dan il-fajl.";
 "Syntax Highlighting" = "Enfasi tas-sintassi";
+"Mixed" = "Imħallta";

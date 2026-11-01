@@ -128,6 +128,22 @@ public enum LineEnding: String, CaseIterable, Sendable {
         return previousWasCR ? .cr : .lf
     }
 
+    /// Whether the text has more than one kind of line break. A CR at the very
+    /// end doesn't count: its LF may not have been written yet.
+    public static func isMixed(in text: String) -> Bool {
+        var first: LineEnding?
+        var previousWasCR = false
+        for byte in text.utf8 {
+            let found: LineEnding? = previousWasCR ? (byte == 0x0A ? .crlf : .cr) : (byte == 0x0A ? .lf : nil)
+            if let found {
+                if let first, first != found { return true }
+                first = found
+            }
+            previousWasCR = byte == 0x0D
+        }
+        return false
+    }
+
     public func apply(to text: String) -> String {
         let normalized = text
             .replacingOccurrences(of: "\r\n", with: "\n")

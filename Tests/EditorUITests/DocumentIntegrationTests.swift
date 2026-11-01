@@ -73,6 +73,27 @@ final class DocumentIntegrationTests: XCTestCase {
         XCTAssertEqual(try document.data(ofType: "public.plain-text"), Data("a\nb".utf8))
     }
 
+    func testMixedLineEndingsShowInTheStatusBarWithNoChoiceChecked() throws {
+        let (_, controller) = try open(Data("a\r\nb\nc".utf8))
+        XCTAssertEqual(controller.statusBar.lineEndingButton.title, "Mixed")
+        XCTAssertEqual(controller.statusBar.lineEndingMenu().items.map(\.state), [.off, .off, .off])
+    }
+
+    func testChoosingALineEndingNormalizesAMixedTextAndUndoes() throws {
+        let (document, controller) = try open(Data("a\r\nb\nc".utf8))
+        let undoManager = try XCTUnwrap(controller.textView.undoManager)
+        // CRLF comes first in the text, and it still has to convert the rest.
+        controller.setLineEnding(.crlf)
+        drainMainQueue()
+        XCTAssertEqual(try document.data(ofType: "public.plain-text"), Data("a\r\nb\r\nc".utf8))
+        XCTAssertEqual(controller.statusBar.lineEndingButton.title, "CRLF")
+
+        undoManager.undo()
+        drainMainQueue()
+        XCTAssertEqual(try document.data(ofType: "public.plain-text"), Data("a\r\nb\nc".utf8))
+        XCTAssertEqual(controller.statusBar.lineEndingButton.title, "Mixed")
+    }
+
     func testLineEndingMenuListsAllChoices() throws {
         let (_, controller) = try open(Data("a".utf8))
         let menu = controller.statusBar.lineEndingMenu()

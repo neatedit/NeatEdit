@@ -172,3 +172,4 @@
 "Some characters don't exist in the file's encoding." = "Mõnda märki faili kodeeringus ei ole.";
 "Lines can't be edited in this file's encoding." = "Selle faili kodeeringus ei saa ridu muuta.";
 "Syntax Highlighting" = "Süntaksi esiletõstmine";
+"Mixed" = "Segatud";

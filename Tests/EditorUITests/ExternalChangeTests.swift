@@ -481,6 +481,20 @@ final class ExternalChangeTests: XCTestCase {
             secondDisk: "a\nB\nc\nd\nE"), .accept)
     }
 
+    func testApplyingAReviewNormalizesAMixedTextAndUndoes() throws {
+        let (document, controller, url) = try open("a\r\nb\nc")
+        type("!", at: 0, in: controller)
+        try changeOnDisk("a\r\nb\nC", at: url, document: document)
+        let hunk = try XCTUnwrap(merge(document)?.hunks.first { $0.base.newLines == ["C"] })
+        document.applyReview([hunk.id: .accept])
+        XCTAssertEqual(controller.textView.string, "!a\r\nb\r\nC")
+        XCTAssertEqual(controller.statusBar.lineEndingButton.title, "CRLF")
+
+        controller.textView.undoManager?.undo()
+        XCTAssertEqual(controller.textView.string, "!a\r\nb\nc")
+        XCTAssertEqual(controller.statusBar.lineEndingButton.title, "Mixed")
+    }
+
     func testSilentReloadUndoStoresOnlyTheChange() throws {
         let (document, controller, _) = try open("keep\nkeep\nkeep")
         controller.textView.setSelectedRange(NSRange(location: 14, length: 0))

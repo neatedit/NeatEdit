@@ -172,3 +172,4 @@
 "Some characters don't exist in the file's encoding." = "Některé znaky v kódování souboru neexistují.";
 "Lines can't be edited in this file's encoding." = "V kódování tohoto souboru nelze řádky upravovat.";
 "Syntax Highlighting" = "Zvýrazňování syntaxe";
+"Mixed" = "Smíšené";

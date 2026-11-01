@@ -118,14 +118,16 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
     func reload(from file: TextFile) {
         let origin = scrollView.contentView.bounds.origin
         replaceAllText(with: file.text, actionName: TextDocument.reloadActionName) {
-            self.setFormat(file, lineEnding: LineEnding.detect(in: file.text))
+            self.setFormat(file, lineEnding: LineEnding.detect(in: file.text), isMixed: LineEnding.isMixed(in: file.text))
         }
         scrollView.contentView.scroll(to: origin)
         scrollView.reflectScrolledClipView(scrollView.contentView)
     }
 
     func replaceText(with text: String, actionName: String) {
-        replaceAllText(with: text, actionName: actionName)
+        replaceAllText(with: text, actionName: actionName) {
+            self.setFormat(self.model.file, lineEnding: self.model.lineEnding, isMixed: LineEnding.isMixed(in: text))
+        }
     }
 
     var isScrolledToBottom: Bool {
@@ -248,11 +250,12 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
         return UTF16.isLeadSurrogate(before) && UTF16.isTrailSurrogate(after) || (before == 0x0D && after == 0x0A)
     }
 
-    private func setFormat(_ file: TextFile, lineEnding: LineEnding) {
-        let old = (file: model.file, lineEnding: model.lineEnding)
+    private func setFormat(_ file: TextFile, lineEnding: LineEnding, isMixed: Bool = false) {
+        let old = (file: model.file, lineEnding: model.lineEnding, isMixed: model.hasMixedEndings)
         model.adoptFormat(of: file)
         model.lineEnding = lineEnding
-        textView.undoManager?.registerUndo(withTarget: self) { $0.setFormat(old.file, lineEnding: old.lineEnding) }
+        model.hasMixedEndings = isMixed
+        textView.undoManager?.registerUndo(withTarget: self) { $0.setFormat(old.file, lineEnding: old.lineEnding, isMixed: old.isMixed) }
         updateStatus()
     }
 
@@ -424,7 +427,7 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
     /// Converts every line break in the text; one undo step reverts both the
     /// text and the setting.
     func setLineEnding(_ ending: LineEnding) {
-        guard ending != model.lineEnding else { return }
+        guard ending != model.lineEnding || model.hasMixedEndings else { return }
         let caret = textView.selectedRange().location
         replaceAllText(with: ending.apply(to: model.storage.string), actionName: L10n.tr("Convert Line Endings")) {
             self.setFormat(self.model.file, lineEnding: ending)

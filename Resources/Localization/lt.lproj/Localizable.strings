@@ -172,3 +172,4 @@
 "Some characters don't exist in the file's encoding." = "Kai kurių simbolių failo koduotėje nėra.";
 "Lines can't be edited in this file's encoding." = "Šio failo koduotėje eilučių redaguoti negalima.";
 "Syntax Highlighting" = "Sintaksės paryškinimas";
+"Mixed" = "Mišrūs";

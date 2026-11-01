@@ -172,3 +172,4 @@
 "Some characters don't exist in the file's encoding." = "Ορισμένοι χαρακτήρες δεν υπάρχουν στην κωδικοποίηση του αρχείου.";
 "Lines can't be edited in this file's encoding." = "Οι γραμμές δεν μπορούν να επεξεργαστούν στην κωδικοποίηση αυτού του αρχείου.";
 "Syntax Highlighting" = "Επισήμανση σύνταξης";
+"Mixed" = "Μικτά";

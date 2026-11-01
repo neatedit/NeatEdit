@@ -12,6 +12,9 @@ public final class EditorModel: NSObject, NSTextStorageDelegate {
     public var lineEnding: LineEnding
 
     /// Called on the main thread when totals finished counting in the background.
+    /// The text has more than one kind of line break: it's saved as it is,
+    /// and only the line ending menu normalizes it.
+    public var hasMixedEndings: Bool
     public var onTotalsChanged: (() -> Void)?
     /// Characters changed, other than by `append`: the new text's range and the change in length.
     var onTextEdited: ((NSRange, Int) -> Void)?
@@ -38,6 +41,7 @@ public final class EditorModel: NSObject, NSTextStorageDelegate {
         let lineIndex: LineIndex
         let file: TextFile
         let lineEnding: LineEnding
+        let hasMixedEndings: Bool
     }
 
     public static func prepare(_ file: TextFile) -> Prepared {
@@ -48,7 +52,8 @@ public final class EditorModel: NSObject, NSTextStorageDelegate {
             storage: storage,
             lineIndex: LineIndex(storage.string as NSString),
             file: meta,
-            lineEnding: LineEnding.detect(in: file.text)
+            lineEnding: LineEnding.detect(in: file.text),
+            hasMixedEndings: LineEnding.isMixed(in: file.text)
         )
     }
 
@@ -61,6 +66,7 @@ public final class EditorModel: NSObject, NSTextStorageDelegate {
         lineIndex = prepared.lineIndex
         file = prepared.file
         lineEnding = prepared.lineEnding
+        hasMixedEndings = prepared.hasMixedEndings
         super.init()
         storage.delegate = self
     }
@@ -94,6 +100,10 @@ public final class EditorModel: NSObject, NSTextStorageDelegate {
         let current = storage.string as NSString
         let last = length > 0 ? current.substring(with: current.rangeOfComposedCharacterSequence(at: length - 1)) : ""
         let added = (last + text).count - (last.isEmpty ? 0 : 1)
+        // The ending is known only from a line break before this text, and a
+        // CR at the very end may still turn out to be half of one.
+        let known = lineIndex.lineCount > (last == "\r" ? 2 : 1) ? lineEnding.string : ""
+        if !hasMixedEndings { hasMixedEndings = LineEnding.isMixed(in: known + last + text) }
         isAppending = true
         storage.append(NSAttributedString(string: text, attributes: [.font: Preferences.font]))
         isAppending = false
@@ -113,7 +123,8 @@ public final class EditorModel: NSObject, NSTextStorageDelegate {
             totalCharacters: totals(),
             lines: lineIndex.lineCount,
             encoding: file.encodingName,
-            lineEnding: lineEnding
+            lineEnding: lineEnding,
+            hasMixedEndings: hasMixedEndings
         )
     }
 
@@ -173,7 +184,7 @@ public final class EditorModel: NSObject, NSTextStorageDelegate {
     /// Bytes to write: original encoding, BOM and line endings. Falls back to
     /// UTF-8 when the text gained characters the original encoding can't hold.
     public func encodedData() throws -> Data {
-        let text = lineEnding == .lf ? storage.string : lineEnding.apply(to: storage.string)
+        let text = lineEnding == .lf || hasMixedEndings ? storage.string : lineEnding.apply(to: storage.string)
         let candidate = TextFile(text: text, encoding: file.encoding, hasBOM: file.hasBOM)
         if let data = candidate.encoded() { return data }
         file.encoding = .utf8
