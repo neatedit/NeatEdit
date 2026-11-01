@@ -475,6 +475,79 @@ final class ExternalChangeTests: XCTestCase {
             base: "a\nb", mine: "a\nmine", firstDisk: "a\nB", secondMine: "a\nmine too", secondDisk: "a\nB"))
     }
 
+    func testADeletionThatBecameAnEditNeedsANewDecision() throws {
+        XCTAssertNil(try decisionAfterUpdate(
+            base: "a\nb\nc\nd\ne\nf", mine: "a\nb\nc\nd\ne\nf",
+            firstDisk: "a\nc\nd\ne\nf", secondDisk: "a\nX\nc\nd\ne\nf"))
+    }
+
+    func testAnEditThatGrewInTheMiddleNeedsANewDecision() throws {
+        XCTAssertNil(try decisionAfterUpdate(
+            base: "a\nb\nc\nd\ne\nf", mine: "a\nb\nc\nd\ne\nf",
+            firstDisk: "a\nB1\nc\nd\ne\nf", secondDisk: "a\nB1\nB2\nc\nd\ne\nf"))
+    }
+
+    func testAnInsertionThatGrewInTheMiddleNeedsANewDecision() throws {
+        XCTAssertNil(try decisionAfterUpdate(
+            base: "a\nb\nc\nd\ne\nf", mine: "a\nb\nc\nd\ne\nf",
+            firstDisk: "a\nX\nb\nc\nd\ne\nf", secondDisk: "a\nX\nY\nb\nc\nd\ne\nf"))
+    }
+
+    func testALogEndingInALineBreakThatGrewKeepsItsDecision() throws {
+        let base = "1\n2\n3\n4\n5\n6\n"
+        XCTAssertEqual(try decisionAfterUpdate(
+            base: base, mine: base, firstDisk: base + "7\n", secondDisk: base + "7\n8\n"), .accept)
+    }
+
+    /// The review is open on one disk version when a newer one is still being diffed.
+    private func openReviewWithNewerDiskBeingDiffed() throws -> (TextDocument, EditorViewController, URL) {
+        let (document, controller, url) = try open("a\nb\nc\nd")
+        type("!", at: 0, in: controller)
+        document.diskDidChange(Data("a\nb\nc\nD1".utf8))
+        let deadline = Date().addingTimeInterval(5)
+        while merge(document) == nil, Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+        XCTAssertNotNil(merge(document))
+        // No run loop until the caller acts: the diff can't have finished.
+        document.diskDidChange(Data("a\nb\nc\nD2".utf8))
+        return (document, controller, url)
+    }
+
+    func testDismissingAVersionKeepsTheNewerOneBeingDiffed() throws {
+        let saved = TextDocument.syncMergeLimit
+        TextDocument.syncMergeLimit = 0
+        defer { TextDocument.syncMergeLimit = saved }
+        let (document, _, _) = try openReviewWithNewerDiskBeingDiffed()
+        document.dismissExternalChange()
+        let deadline = Date().addingTimeInterval(5)
+        while merge(document)?.hunks.first?.base.newLines != ["D2"], Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        }
+        XCTAssertEqual(merge(document)?.hunks.first?.base.newLines, ["D2"], "a newer disk version is still news")
+    }
+
+    func testDismissingTheVersionBeingDiffedLeavesNothingPending() throws {
+        let saved = TextDocument.syncMergeLimit
+        TextDocument.syncMergeLimit = 0
+        defer { TextDocument.syncMergeLimit = saved }
+        let (document, controller, _) = try open("a\nb")
+        type("!", at: 0, in: controller)
+        document.diskDidChange(Data("a\nB".utf8))
+        document.dismissExternalChange()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        XCTAssertTrue(controller.banner.isHidden)
+    }
+
+    func testSavingMyVersionElsewhereShowsTheNewerOneBeingDiffed() throws {
+        let saved = TextDocument.syncMergeLimit
+        TextDocument.syncMergeLimit = 0
+        defer { TextDocument.syncMergeLimit = saved }
+        let (document, controller, _) = try openReviewWithNewerDiskBeingDiffed()
+        let mine = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString)-mine.txt")
+        try document.saveMyVersionAs(url: mine)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        XCTAssertEqual(controller.textView.string, "a\nb\nc\nD2")
+    }
+
     func testAnUnchangedConflictKeepsItsDecision() throws {
         XCTAssertEqual(try decisionAfterUpdate(
             base: "a\nb\nc\nd\ne", mine: "a\nmine\nc\nd\ne", firstDisk: "a\nB\nc\nd\ne",

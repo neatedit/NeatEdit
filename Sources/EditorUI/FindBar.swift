@@ -271,7 +271,9 @@ final class FindController: NSObject {
     var inSelection = false {
         didSet {
             let selection = textView.findSelection
-            selectionScope = inSelection && selection.length > 0 ? selection : nil
+            // On with no scope would search the whole text under a switch saying otherwise.
+            if selection.length == 0 { inSelection = false }
+            selectionScope = inSelection ? selection : nil
             optionsChanged()
         }
     }
@@ -325,7 +327,7 @@ final class FindController: NSObject {
         if !isVisible {
             anchor = textView.findSelection.location
             bar.isHidden = false
-            if inSelection { selectionScope = textView.findSelection.length > 0 ? textView.findSelection : nil }
+            if inSelection { inSelection = true }  // Takes the selection there is now.
         }
         let field = textView.canReplaceFound ? field : bar.findField
         textView.window?.makeFirstResponder(field)
@@ -345,7 +347,11 @@ final class FindController: NSObject {
     @objc func replaceEverything(_ sender: Any?) { replaceAll() }
     @objc func toggleCaseSensitive(_ sender: Any?) { options.caseSensitive.toggle() }
     @objc func toggleRegex(_ sender: Any?) { options.regex.toggle() }
-    @objc func toggleInSelection(_ sender: Any?) { inSelection.toggle() }
+    @objc func toggleInSelection(_ sender: Any?) {
+        let wanted = !inSelection
+        inSelection = wanted
+        if inSelection != wanted { NSSound.beep() }
+    }
 
     private func optionsChanged() {
         bar.showOptions(options, inSelection: inSelection)

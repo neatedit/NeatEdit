@@ -39,7 +39,8 @@ public final class TextDocument: NSDocument {
     private(set) var diskReadStamp = 0
     /// Edited documents longer than this (UTF-16 units) are diffed in the background.
     static var syncMergeLimit = 1_000_000
-    private var mergeInFlight = false
+    /// The disk version being diffed in the background.
+    private var mergingDisk: TextFile?
     private var queuedMergeDisk: TextFile?
     /// Bumped whenever the pending state is resolved or reset, so results of
     /// merges started before that are dropped.
@@ -561,10 +562,7 @@ public final class TextDocument: NSDocument {
         let views = windowControllers.compactMap { $0.contentViewController as? TailFollowing }
         let atBottom = views.map(\.isScrolledToBottom)
         let oldLength = model.storage.length
-        // A tab opened on a partial first line guessed its line ending.
-        let guessed = !isViewer && (model.storage.string as NSString).range(of: "\n").location == NSNotFound
         model.append(text)
-        if guessed { model.lineEnding = LineEnding.detect(in: model.storage.string) }
         for (view, follow) in zip(views, atBottom) { view.textDidGrow(from: oldLength, follow: follow) }
     }
 
@@ -652,12 +650,12 @@ public final class TextDocument: NSDocument {
     /// One merge in flight and at most one queued. A finished merge is shown
     /// even if a newer change is queued, so a steady writer can't starve it.
     private func startBackgroundMerge(_ disk: TextFile) {
-        guard !mergeInFlight else {
+        guard mergingDisk == nil else {
             queuedMergeDisk = disk
             return
         }
         guard let model else { return }
-        mergeInFlight = true
+        mergingDisk = disk
         let epoch = stateEpoch
         let base = baseText
         let mine = model.storage.string
@@ -668,7 +666,7 @@ public final class TextDocument: NSDocument {
     }
 
     private func backgroundMergeFinished(_ merge: ExternalMerge, disk: TextFile, epoch: Int) {
-        mergeInFlight = false
+        mergingDisk = nil
         let next = queuedMergeDisk
         queuedMergeDisk = nil
         if epoch == stateEpoch {
@@ -799,16 +797,20 @@ public final class TextDocument: NSDocument {
         // NSDocument compares this with the file before saving; matching it
         // means no "changed by another application" alert for a decided change.
         fileModificationDate = pendingDiskDate
-        // A newer change already queued for diffing is still news.
-        let queued = queuedMergeDisk
+        // A newer change queued for diffing, or being diffed, is still news.
+        let newer = queuedMergeDisk ?? mergingDisk.flatMap { $0.text == disk.text ? nil : $0 }
         resetExternalState()
-        if let queued, let model, isDocumentEdited {
-            externalState = .checking(disk: queued)
-            if model.storage.length > Self.syncMergeLimit {
-                startBackgroundMerge(queued)
-            } else {
-                externalState = .changed(ExternalMerge(base: baseText, mine: model.storage.string, disk: queued.text), disk: queued)
-            }
+        guard let newer, let model else { return }
+        guard isDocumentEdited else {
+            reloadClean(from: newer)
+            baseText = Self.normalized(newer.text)
+            return
+        }
+        externalState = .checking(disk: newer)
+        if model.storage.length > Self.syncMergeLimit {
+            startBackgroundMerge(newer)
+        } else {
+            externalState = .changed(ExternalMerge(base: baseText, mine: model.storage.string, disk: newer.text), disk: newer)
         }
     }
 

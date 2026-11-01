@@ -151,7 +151,7 @@ final class ChangeReviewController: NSViewController {
         self.merge = merge
         decisions = [:]
         for hunk in merge.hunks {
-            if let earlier = byPlace[hunk.base.oldRange], Self.keepsDecision(hunk, from: earlier.hunk) {
+            if let earlier = byPlace[hunk.base.oldRange], keepsDecision(hunk, from: earlier.hunk) {
                 decisions[hunk.id] = earlier.decision
             }
         }
@@ -160,12 +160,11 @@ final class ChangeReviewController: NSViewController {
 
     /// The same change, or a log tail that only grew. A conflict must match
     /// exactly: taking the disk's side replaces the user's text.
-    private static func keepsDecision(_ hunk: ExternalHunk, from earlier: ExternalHunk) -> Bool {
+    private func keepsDecision(_ hunk: ExternalHunk, from earlier: ExternalHunk) -> Bool {
         guard hunk.oldLines == earlier.oldLines, hunk.mineLines == earlier.mineLines,
               hunk.isConflict == earlier.isConflict else { return false }
-        return hunk.isConflict
-            ? hunk.base.newLines == earlier.base.newLines
-            : hunk.base.newLines.starts(with: earlier.base.newLines)
+        if hunk.base.newLines == earlier.base.newLines { return true }
+        return !hunk.isConflict && merge.addsToTheEnd(hunk) && hunk.base.newLines.starts(with: earlier.base.newLines)
     }
 
     func decide(_ id: Int, _ decision: HunkDecision) {

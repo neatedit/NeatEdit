@@ -214,6 +214,21 @@ final class FindBarTests: XCTestCase {
         XCTAssertEqual(controller.textView.selectedRange(), NSRange(location: 1, length: 0))
     }
 
+    func testInSelectionWithNothingSelectedStaysOff() throws {
+        let controller = try open("x x")
+        controller.findController.perform(.showReplaceInterface)
+        controller.findController.inSelection = true
+        XCTAssertFalse(controller.findController.inSelection, "on with no scope would mean the whole text")
+    }
+
+    func testReopeningTheBarWithNothingSelectedTurnsInSelectionOff() throws {
+        let controller = try openWithScope("x x x x", NSRange(location: 2, length: 3), find: "x", replace: "y")
+        controller.findController.close()
+        controller.textView.setSelectedRange(NSRange(location: 0, length: 0))
+        controller.findController.perform(.showReplaceInterface)
+        XCTAssertFalse(controller.findController.inSelection)
+    }
+
     func testRegexOptionAndInvalidPatternMessage() throws {
         let controller = try open("a1 b22")
         let find = controller.findController

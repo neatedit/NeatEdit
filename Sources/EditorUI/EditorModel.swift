@@ -13,7 +13,7 @@ public final class EditorModel: NSObject, NSTextStorageDelegate {
 
     /// Called on the main thread when totals finished counting in the background.
     /// The text has more than one kind of line break: it's saved as it is,
-    /// and only the line ending menu normalizes it.
+    /// until the line ending menu or an applied review normalizes it.
     public var hasMixedEndings: Bool
     public var onTotalsChanged: (() -> Void)?
     /// Characters changed, other than by `append`: the new text's range and the change in length.
@@ -100,10 +100,13 @@ public final class EditorModel: NSObject, NSTextStorageDelegate {
         let current = storage.string as NSString
         let last = length > 0 ? current.substring(with: current.rangeOfComposedCharacterSequence(at: length - 1)) : ""
         let added = (last + text).count - (last.isEmpty ? 0 : 1)
-        // The ending is known only from a line break before this text, and a
-        // CR at the very end may still turn out to be half of one.
-        let known = lineIndex.lineCount > (last == "\r" ? 2 : 1) ? lineEnding.string : ""
-        if !hasMixedEndings { hasMixedEndings = LineEnding.isMixed(in: known + last + text) }
+        // A CR at the very end may still turn out to be half of a line break, and
+        // the ending is known only from a line break before that.
+        let halfBreak = last == "\r" ? last : ""
+        let known = lineIndex.lineCount > (halfBreak.isEmpty ? 1 : 2) ? lineEnding.string : ""
+        if !hasMixedEndings { hasMixedEndings = LineEnding.isMixed(in: known + halfBreak + text) }
+        // A tab opened on a partial first line only guessed its line ending.
+        if known.isEmpty { lineEnding = LineEnding.detect(in: halfBreak + text) }
         isAppending = true
         storage.append(NSAttributedString(string: text, attributes: [.font: Preferences.font]))
         isAppending = false

@@ -100,6 +100,13 @@ final class EditorModelTests: XCTestCase {
         XCTAssertEqual(try model.encodedData(), Data("a\r\nb\r\nc\nd".utf8))
     }
 
+    func testAppendsToACRLFTextEndingInALineBreakAreNotMixed() {
+        let model = EditorModel(file: TextFile(text: "a\r\nb\r\n"))
+        model.append("c\r\n")
+        model.append("d\r\n")
+        XCTAssertFalse(model.hasMixedEndings)
+    }
+
     func testAnAppendCompletingALineBreakIsNotMixed() {
         let model = EditorModel(file: TextFile(text: "a\r\nb\r"))
         model.append("\nc")
@@ -109,6 +116,14 @@ final class EditorModelTests: XCTestCase {
     func testAFirstAppendSetsNoMixtureByItself() {
         let model = EditorModel(file: TextFile(text: "partial"))
         model.append(" line\r\nnext\r\n")
+        XCTAssertFalse(model.hasMixedEndings)
+    }
+
+    func testTheFirstLineBreakAppendedSetsTheLineEnding() {
+        let model = EditorModel(file: TextFile(text: "partial"))
+        model.append(" line\r\n")
+        XCTAssertEqual(model.lineEnding, .crlf)
+        model.append("next\r\n")
         XCTAssertFalse(model.hasMixedEndings)
     }
 
