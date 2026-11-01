@@ -172,3 +172,4 @@
 "Some characters don't exist in the file's encoding." = "Dažas rakstzīmes faila kodējumā nepastāv.";
 "Lines can't be edited in this file's encoding." = "Šī faila kodējumā rindas nevar rediģēt.";
 "Syntax Highlighting" = "Sintakses izcelšana";
+"Mixed" = "Jaukti";

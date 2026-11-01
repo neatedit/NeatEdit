@@ -172,3 +172,4 @@
 "Some characters don't exist in the file's encoding." = "Neki znakovi ne postoje u kodiranju datoteke.";
 "Lines can't be edited in this file's encoding." = "Retke nije moguće uređivati u kodiranju ove datoteke.";
 "Syntax Highlighting" = "Isticanje sintakse";
+"Mixed" = "Mješoviti";

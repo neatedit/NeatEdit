@@ -58,6 +58,19 @@ struct TextFileTests {
         #expect(LineEnding.detect(in: "no breaks") == .lf)
     }
 
+    @Test func detectsMixedLineEndings() {
+        #expect(LineEnding.isMixed(in: "a\r\nb\nc"))
+        #expect(LineEnding.isMixed(in: "a\nb\r\nc"))
+        #expect(LineEnding.isMixed(in: "a\rb\nc"))
+        #expect(LineEnding.isMixed(in: "a\r\nb\rc"))
+        #expect(!LineEnding.isMixed(in: "a\nb\nc"))
+        #expect(!LineEnding.isMixed(in: "a\r\nb\r\n"))
+        #expect(!LineEnding.isMixed(in: "a\rb\r"))
+        #expect(!LineEnding.isMixed(in: "no breaks"))
+        // Its LF may simply not have been written yet.
+        #expect(!LineEnding.isMixed(in: "a\r\nb\r"))
+    }
+
     @Test func convertsLineEndings() {
         #expect(LineEnding.crlf.apply(to: "a\nb\r\nc\rd") == "a\r\nb\r\nc\r\nd")
         #expect(LineEnding.lf.apply(to: "a\r\nb\rc") == "a\nb\nc")

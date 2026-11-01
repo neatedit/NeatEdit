@@ -39,7 +39,8 @@ public final class TextDocument: NSDocument {
     private(set) var diskReadStamp = 0
     /// Edited documents longer than this (UTF-16 units) are diffed in the background.
     static var syncMergeLimit = 1_000_000
-    private var mergeInFlight = false
+    /// The disk version being diffed in the background.
+    private var mergingDisk: TextFile?
     private var queuedMergeDisk: TextFile?
     /// Bumped whenever the pending state is resolved or reset, so results of
     /// merges started before that are dropped.
@@ -412,8 +413,9 @@ public final class TextDocument: NSDocument {
             let text = self.textStamp
             let encoding = model.file.encoding
             let tail = forViewer ? self.tail : nil
+            let knownDate = self.fileModificationDate
             DispatchQueue.global(qos: .userInitiated).async {
-                let outcome = Self.readDisk(url, presenter: self, tail: tail, preferring: encoding, forViewer: forViewer)
+                let outcome = Self.readDisk(url, presenter: self, tail: tail, knownDate: knownDate, preferring: encoding, forViewer: forViewer)
                 DispatchQueue.main.async {
                     switch outcome {
                     case .appended(let followed, let change, let date):
@@ -457,10 +459,10 @@ public final class TextDocument: NSDocument {
     }
 
     private nonisolated static func readDisk(
-        _ url: URL, presenter: NSFilePresenter, tail: FileTail?, preferring encoding: String.Encoding, forViewer: Bool
+        _ url: URL, presenter: NSFilePresenter, tail: FileTail?, knownDate: Date?, preferring encoding: String.Encoding, forViewer: Bool
     ) -> DiskOutcome {
         // A followed log: read just what was added, if that's all that happened.
-        if let tail, let (followed, change, date) = readAppended(to: tail, at: url, presenter: presenter) {
+        if let tail, let (followed, change, date) = readAppended(to: tail, knownDate: knownDate, at: url, presenter: presenter) {
             return .appended(followed, change, date)
         }
         var data: Data?
@@ -486,7 +488,9 @@ public final class TextDocument: NSDocument {
             guard let self else { return }
             let events = source.data
             if !events.isDisjoint(with: [.delete, .rename]) {
-                // Replaced or moved (log rotation): watch whatever is at the path now.
+                // Replaced or moved (log rotation, another editor saving): watch
+                // whatever is at the path now. It's another file, whatever its end.
+                self.tail = nil
                 source.cancel()
                 self.appendWatcher = nil
                 self.rewatch(attemptsLeft: 20)
@@ -523,19 +527,22 @@ public final class TextDocument: NSDocument {
 
     /// Nil when the file can't be read that way (gone, or rewritten).
     private nonisolated static func readAppended(
-        to tail: FileTail, at url: URL, presenter: NSFilePresenter
+        to tail: FileTail, knownDate: Date?, at url: URL, presenter: NSFilePresenter
     ) -> (FileTail, FileTail.Change, Date?)? {
         var result: (FileTail, FileTail.Change, Date?)?
         NSFileCoordinator(filePresenter: presenter).coordinate(readingItemAt: url, options: .withoutChanges, error: nil) { url in
             guard let handle = try? FileHandle(forReadingFrom: url) else { return }
             defer { try? handle.close() }
-            var tail = tail
-            let change = try? tail.update(size: Int(handle.seekToEnd())) { range in
+            var followed = tail
+            let change = try? followed.update(size: Int(handle.seekToEnd())) { range in
                 try handle.seek(toOffset: UInt64(range.lowerBound))
                 return try handle.read(upToCount: range.count) ?? Data()
             }
             guard let change, change != .rewritten else { return }
-            result = (tail, change, modificationDate(of: url))
+            let date = modificationDate(of: url)
+            // Written to without growing: not what a log does, so look at all of it.
+            if followed.byteCount == tail.byteCount, let knownDate, date != knownDate { return }
+            result = (followed, change, date)
         }
         return result
     }
@@ -555,10 +562,7 @@ public final class TextDocument: NSDocument {
         let views = windowControllers.compactMap { $0.contentViewController as? TailFollowing }
         let atBottom = views.map(\.isScrolledToBottom)
         let oldLength = model.storage.length
-        // A tab opened on a partial first line guessed its line ending.
-        let guessed = !isViewer && (model.storage.string as NSString).range(of: "\n").location == NSNotFound
         model.append(text)
-        if guessed { model.lineEnding = LineEnding.detect(in: model.storage.string) }
         for (view, follow) in zip(views, atBottom) { view.textDidGrow(from: oldLength, follow: follow) }
     }
 
@@ -646,12 +650,12 @@ public final class TextDocument: NSDocument {
     /// One merge in flight and at most one queued. A finished merge is shown
     /// even if a newer change is queued, so a steady writer can't starve it.
     private func startBackgroundMerge(_ disk: TextFile) {
-        guard !mergeInFlight else {
+        guard mergingDisk == nil else {
             queuedMergeDisk = disk
             return
         }
         guard let model else { return }
-        mergeInFlight = true
+        mergingDisk = disk
         let epoch = stateEpoch
         let base = baseText
         let mine = model.storage.string
@@ -662,7 +666,7 @@ public final class TextDocument: NSDocument {
     }
 
     private func backgroundMergeFinished(_ merge: ExternalMerge, disk: TextFile, epoch: Int) {
-        mergeInFlight = false
+        mergingDisk = nil
         let next = queuedMergeDisk
         queuedMergeDisk = nil
         if epoch == stateEpoch {
@@ -793,16 +797,20 @@ public final class TextDocument: NSDocument {
         // NSDocument compares this with the file before saving; matching it
         // means no "changed by another application" alert for a decided change.
         fileModificationDate = pendingDiskDate
-        // A newer change already queued for diffing is still news.
-        let queued = queuedMergeDisk
+        // A newer change queued for diffing, or being diffed, is still news.
+        let newer = queuedMergeDisk ?? mergingDisk.flatMap { $0.text == disk.text ? nil : $0 }
         resetExternalState()
-        if let queued, let model, isDocumentEdited {
-            externalState = .checking(disk: queued)
-            if model.storage.length > Self.syncMergeLimit {
-                startBackgroundMerge(queued)
-            } else {
-                externalState = .changed(ExternalMerge(base: baseText, mine: model.storage.string, disk: queued.text), disk: queued)
-            }
+        guard let newer, let model else { return }
+        guard isDocumentEdited else {
+            reloadClean(from: newer)
+            baseText = Self.normalized(newer.text)
+            return
+        }
+        externalState = .checking(disk: newer)
+        if model.storage.length > Self.syncMergeLimit {
+            startBackgroundMerge(newer)
+        } else {
+            externalState = .changed(ExternalMerge(base: baseText, mine: model.storage.string, disk: newer.text), disk: newer)
         }
     }
 

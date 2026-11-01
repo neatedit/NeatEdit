@@ -190,6 +190,38 @@ struct FindQueryTests {
         #expect(match?.range.location == text.length - 16)
     }
 
+    private func previousFromTheEnd(_ query: FindQuery, in text: NSString) -> NSRange? {
+        query.previous(in: text, before: NSRange(location: text.length, length: 0),
+                       scope: NSRange(location: 0, length: text.length))?.range
+    }
+
+    @Test func previousDoesNotCutARegexMatchLongerThanTheWindow() throws {
+        let query = try FindQuery(find: [.text("a+")], options: FindOptions(regex: true))
+        let text = String(repeating: "a", count: 70_000) as NSString
+        #expect(previousFromTheEnd(query, in: text) == NSRange(location: 0, length: 70_000))
+    }
+
+    @Test func previousDoesNotCutALeadingPlaceholderOnALongLine() throws {
+        let query = try FindQuery(find: [.placeholder(1), .text("z")])
+        let text = (String(repeating: "m", count: 70_000) + "z") as NSString
+        #expect(previousFromTheEnd(query, in: text) == NSRange(location: 0, length: 70_001))
+    }
+
+    @Test func previousFindsWhatTheForwardSearchFindsOnALongLine() throws {
+        let query = try FindQuery(find: [.text("x.*y|z")], options: FindOptions(regex: true))
+        let text = ("x" + String(repeating: "m", count: 70_000) + "z" + "y") as NSString
+        #expect(previousFromTheEnd(query, in: text) == NSRange(location: 0, length: text.length))
+    }
+
+    @Test func previousStaysQuickWithARegexOnManyLines() throws {
+        let query = try FindQuery(find: [.text("h.y")], options: FindOptions(regex: true))
+        let text = String(repeating: "hay hay hay hay\n", count: 1_500_000) as NSString
+        let start = Date()
+        let match = previousFromTheEnd(query, in: text)
+        #expect(Date().timeIntervalSince(start) < 0.2)
+        #expect(match == NSRange(location: text.length - 4, length: 3))
+    }
+
     @Test func previousFindsAMatchAcrossTheWindowEdge() throws {
         let query = try FindQuery(find: [.text("ab")])
         let text = (String(repeating: "x", count: 65_535) + "ab" + String(repeating: "y", count: 10)) as NSString

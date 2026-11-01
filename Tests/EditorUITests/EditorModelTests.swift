@@ -33,8 +33,14 @@ final class EditorModelTests: XCTestCase {
         model.append("\nb\n")
         XCTAssertEqual(model.storage.string, "a\r\nb\n")
         XCTAssertEqual(model.lineIndex.starts, LineIndex(model.storage.string as NSString).starts)
-        // "\r" + "\n" became one character.
-        XCTAssertEqual(model.status(selectedRange: NSRange(location: 0, length: 0)).right, "4 chars, 3 lines   UTF-8   CR")
+        // "\r" + "\n" became one character, and it isn't the "\n" that follows.
+        XCTAssertEqual(model.status(selectedRange: NSRange(location: 0, length: 0)).right, "4 chars, 3 lines   UTF-8   Mixed")
+    }
+
+    func testAnAppendCompletingTheFirstLineBreakIsNotMixed() {
+        let model = EditorModel(file: TextFile(text: "a\r"))
+        model.append("\nb\r\n")
+        XCTAssertFalse(model.hasMixedEndings)
     }
 
     func testAppendThatCompletesTheLastCharacterAddsNone() {
@@ -70,6 +76,55 @@ final class EditorModelTests: XCTestCase {
         model.storage.replaceCharacters(in: NSRange(location: 4, length: 0), with: "\nc")
         XCTAssertEqual(model.lineEnding, .crlf)
         XCTAssertEqual(try model.encodedData(), Data([0xEF, 0xBB, 0xBF]) + Data("a\r\nb\r\nc".utf8))
+    }
+
+    func testMixedLineEndingsAreSavedAsTheyWere() throws {
+        for text in ["a\r\nb\nc", "a\nb\r\nc", "a\r\nb\rc\nd", "a\rb\nc"] {
+            let model = EditorModel(file: TextFile(text: text))
+            XCTAssertEqual(try model.encodedData(), Data(text.utf8), text.debugDescription)
+        }
+    }
+
+    func testAnEditInAMixedFileLeavesItsOtherLineEndingsAlone() throws {
+        let model = EditorModel(file: TextFile(text: "a\r\nb\nc"))
+        model.storage.replaceCharacters(in: NSRange(location: 0, length: 1), with: "A")
+        XCTAssertEqual(try model.encodedData(), Data("A\r\nb\nc".utf8))
+    }
+
+    func testAnAppendWithAnotherLineEndingMakesTheTextMixed() throws {
+        let model = EditorModel(file: TextFile(text: "a\r\nb"))
+        model.append("\r\nc")
+        XCTAssertFalse(model.hasMixedEndings)
+        model.append("\nd")
+        XCTAssertTrue(model.hasMixedEndings)
+        XCTAssertEqual(try model.encodedData(), Data("a\r\nb\r\nc\nd".utf8))
+    }
+
+    func testAppendsToACRLFTextEndingInALineBreakAreNotMixed() {
+        let model = EditorModel(file: TextFile(text: "a\r\nb\r\n"))
+        model.append("c\r\n")
+        model.append("d\r\n")
+        XCTAssertFalse(model.hasMixedEndings)
+    }
+
+    func testAnAppendCompletingALineBreakIsNotMixed() {
+        let model = EditorModel(file: TextFile(text: "a\r\nb\r"))
+        model.append("\nc")
+        XCTAssertFalse(model.hasMixedEndings)
+    }
+
+    func testAFirstAppendSetsNoMixtureByItself() {
+        let model = EditorModel(file: TextFile(text: "partial"))
+        model.append(" line\r\nnext\r\n")
+        XCTAssertFalse(model.hasMixedEndings)
+    }
+
+    func testTheFirstLineBreakAppendedSetsTheLineEnding() {
+        let model = EditorModel(file: TextFile(text: "partial"))
+        model.append(" line\r\n")
+        XCTAssertEqual(model.lineEnding, .crlf)
+        model.append("next\r\n")
+        XCTAssertFalse(model.hasMixedEndings)
     }
 
     func testFallsBackToUTF8WhenTextNoLongerFitsEncoding() throws {

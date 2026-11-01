@@ -30,6 +30,8 @@ public struct FindQuery {
     public let options: FindOptions
     let regex: NSRegularExpression
     private let replace: [FindToken]
+    /// Every match has the same text, so where the search starts can't change one.
+    private let isPlainText: Bool
 
     public init(find: [FindToken], replace: [FindToken] = [], options: FindOptions = FindOptions()) throws {
         guard find.contains(where: { $0 != .text("") }) else { throw FindError.emptyPattern }
@@ -56,6 +58,7 @@ public struct FindQuery {
         }
         self.replace = replace
         self.options = options
+        isPlainText = !options.regex && !find.contains { if case .placeholder = $0 { true } else { false } }
     }
 
     private static let matching: NSRegularExpression.MatchingOptions = [.withTransparentBounds, .withoutAnchoringBounds]
@@ -179,17 +182,25 @@ public struct FindQuery {
 
     /// Searches growing windows that end at the end of `range`, so finding the
     /// previous match costs about the distance to it, not to the scope start
-    /// (seconds in a 500 MB log).
+    /// (seconds in a 500 MB log). A pattern could match differently from
+    /// inside a line or a match, so its windows start on a line, and a match
+    /// that begins at the very start may be the end of a longer one: look
+    /// further back. Only a match running across lines can still come out
+    /// different from a forward search.
     private func last(in text: NSString, range: NSRange, excluding selection: NSRange) -> NSTextCheckingResult? {
         var window = 64 * 1024
         while true {
-            let start = max(range.location, range.upperBound - window)
+            var start = max(range.location, range.upperBound - window)
+            if !isPlainText {
+                start = max(range.location, text.lineRange(for: NSRange(location: start, length: 0)).location)
+            }
             var found: NSTextCheckingResult?
             forEachMatch(in: text, range: NSRange(location: start, length: range.upperBound - start)) { result in
                 if result.range != selection { found = result }
                 return true
             }
-            if found != nil || start == range.location { return found }
+            if start == range.location { return found }
+            if let found, isPlainText || found.range.location > start { return found }
             window *= 4
         }
     }

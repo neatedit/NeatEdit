@@ -172,3 +172,4 @@
 "Some characters don't exist in the file's encoding." = "Vissa tecken finns inte i filens teckenkodning.";
 "Lines can't be edited in this file's encoding." = "Rader kan inte redigeras i den här filens teckenkodning.";
 "Syntax Highlighting" = "Syntaxmarkering";
+"Mixed" = "Blandade";

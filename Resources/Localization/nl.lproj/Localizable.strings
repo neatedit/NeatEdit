@@ -172,3 +172,4 @@
 "Some characters don't exist in the file's encoding." = "Sommige tekens bestaan niet in de codering van het bestand.";
 "Lines can't be edited in this file's encoding." = "Regels kunnen niet worden gewijzigd in de codering van dit bestand.";
 "Syntax Highlighting" = "Syntaxismarkering";
+"Mixed" = "Gemengd";

@@ -172,3 +172,4 @@
 "Some characters don't exist in the file's encoding." = "Някои знаци не съществуват в кодирането на файла.";
 "Lines can't be edited in this file's encoding." = "Редовете не могат да се редактират в кодирането на този файл.";
 "Syntax Highlighting" = "Оцветяване на синтаксиса";
+"Mixed" = "Смесени";

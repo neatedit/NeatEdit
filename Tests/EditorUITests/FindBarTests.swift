@@ -137,6 +137,98 @@ final class FindBarTests: XCTestCase {
         XCTAssertEqual(controller.textView.selectedRange(), NSRange(location: 2, length: 3))
     }
 
+    /// Search `selection` of a new tab, with find and replace fields set.
+    private func openWithScope(_ text: String, _ selection: NSRange, find: String, replace: String = "") throws -> EditorViewController {
+        let controller = try open(text)
+        controller.textView.setSelectedRange(selection)
+        controller.findController.perform(.showReplaceInterface)
+        controller.findController.inSelection = true
+        controller.findController.bar.findField.tokens = [.text(find)]
+        controller.findController.bar.replaceField.tokens = [.text(replace)]
+        return controller
+    }
+
+    private func edit(_ controller: EditorViewController, _ range: NSRange, _ text: String) {
+        _ = controller.textView.replaceFound(range, with: text, actionName: "Edit")
+    }
+
+    func testTheScopeMovesWithTextAddedBeforeIt() throws {
+        let controller = try openWithScope("cat cat", NSRange(location: 4, length: 3), find: "cat")
+        edit(controller, NSRange(location: 0, length: 0), "xxxx")
+        controller.textView.setSelectedRange(NSRange(location: 0, length: 0))
+        controller.findController.perform(.nextMatch)
+        XCTAssertEqual(controller.textView.selectedRange(), NSRange(location: 8, length: 3))
+    }
+
+    func testTheScopeGrowsWithTextAddedInsideIt() throws {
+        let controller = try openWithScope("x x x x", NSRange(location: 2, length: 3), find: "x", replace: "y")
+        edit(controller, NSRange(location: 3, length: 0), " x")
+        controller.findController.perform(.replaceAll)
+        XCTAssertEqual(controller.textView.string, "x y y y x")
+    }
+
+    func testTextAfterTheScopeLeavesItAlone() throws {
+        let controller = try openWithScope("x x x x", NSRange(location: 0, length: 3), find: "x", replace: "y")
+        edit(controller, NSRange(location: 3, length: 1), "")
+        controller.findController.perform(.replaceAll)
+        XCTAssertEqual(controller.textView.string, "y yx x")
+    }
+
+    func testAnEditAcrossTheScopeEdgeShrinksIt() throws {
+        let controller = try openWithScope("x x x x", NSRange(location: 2, length: 3), find: "x", replace: "y")
+        edit(controller, NSRange(location: 1, length: 2), "")
+        XCTAssertEqual(controller.textView.string, "x x x")
+        controller.findController.perform(.replaceAll)
+        XCTAssertEqual(controller.textView.string, "x y x")
+    }
+
+    func testADeletedScopeDoesNotWidenToTheWholeText() throws {
+        let controller = try openWithScope("x x x x", NSRange(location: 2, length: 3), find: "x", replace: "y")
+        edit(controller, NSRange(location: 2, length: 3), "")
+        controller.findController.perform(.replaceAll)
+        XCTAssertEqual(controller.textView.string, "x  x")
+        XCTAssertEqual(controller.findController.bar.statusLabel.stringValue, "Not found")
+    }
+
+    func testUndoingReplaceAllRestoresTheScope() throws {
+        let controller = try openWithScope("x x x x", NSRange(location: 2, length: 3), find: "x", replace: "yy")
+        controller.findController.perform(.replaceAll)
+        XCTAssertEqual(controller.textView.string, "x yy yy x")
+        controller.textView.undoManager?.undo()
+        XCTAssertEqual(controller.textView.string, "x x x x")
+        controller.findController.bar.replaceField.tokens = [.text("z")]
+        controller.findController.perform(.replaceAll)
+        XCTAssertEqual(controller.textView.string, "x z z x")
+    }
+
+    func testAnotherTextTurnsTheScopeOff() throws {
+        let controller = try openWithScope("x x x x", NSRange(location: 2, length: 3), find: "x")
+        controller.replaceModel(EditorModel(file: TextFile(text: "x x x")))
+        XCTAssertFalse(controller.findController.inSelection, "the switch must not claim a scope that's gone")
+    }
+
+    func testAShorterTextWithASelectionPastItsEndDoesNotCrash() throws {
+        let controller = try open("x x x x")
+        controller.textView.setSelectedRange(NSRange(location: 2, length: 3))
+        controller.replaceModel(EditorModel(file: TextFile(text: "x")))
+        XCTAssertEqual(controller.textView.selectedRange(), NSRange(location: 1, length: 0))
+    }
+
+    func testInSelectionWithNothingSelectedStaysOff() throws {
+        let controller = try open("x x")
+        controller.findController.perform(.showReplaceInterface)
+        controller.findController.inSelection = true
+        XCTAssertFalse(controller.findController.inSelection, "on with no scope would mean the whole text")
+    }
+
+    func testReopeningTheBarWithNothingSelectedTurnsInSelectionOff() throws {
+        let controller = try openWithScope("x x x x", NSRange(location: 2, length: 3), find: "x", replace: "y")
+        controller.findController.close()
+        controller.textView.setSelectedRange(NSRange(location: 0, length: 0))
+        controller.findController.perform(.showReplaceInterface)
+        XCTAssertFalse(controller.findController.inSelection)
+    }
+
     func testRegexOptionAndInvalidPatternMessage() throws {
         let controller = try open("a1 b22")
         let find = controller.findController

@@ -271,7 +271,9 @@ final class FindController: NSObject {
     var inSelection = false {
         didSet {
             let selection = textView.findSelection
-            selectionScope = inSelection && selection.length > 0 ? selection : nil
+            // On with no scope would search the whole text under a switch saying otherwise.
+            if selection.length == 0 { inSelection = false }
+            selectionScope = inSelection ? selection : nil
             optionsChanged()
         }
     }
@@ -325,7 +327,7 @@ final class FindController: NSObject {
         if !isVisible {
             anchor = textView.findSelection.location
             bar.isHidden = false
-            if inSelection { selectionScope = textView.findSelection.length > 0 ? textView.findSelection : nil }
+            if inSelection { inSelection = true }  // Takes the selection there is now.
         }
         let field = textView.canReplaceFound ? field : bar.findField
         textView.window?.makeFirstResponder(field)
@@ -345,7 +347,11 @@ final class FindController: NSObject {
     @objc func replaceEverything(_ sender: Any?) { replaceAll() }
     @objc func toggleCaseSensitive(_ sender: Any?) { options.caseSensitive.toggle() }
     @objc func toggleRegex(_ sender: Any?) { options.regex.toggle() }
-    @objc func toggleInSelection(_ sender: Any?) { inSelection.toggle() }
+    @objc func toggleInSelection(_ sender: Any?) {
+        let wanted = !inSelection
+        inSelection = wanted
+        if inSelection != wanted { NSSound.beep() }
+    }
 
     private func optionsChanged() {
         bar.showOptions(options, inSelection: inSelection)
@@ -426,7 +432,6 @@ final class FindController: NSObject {
         }
         let replacement = query.replacement(for: match, in: text)
         guard textView.replaceFound(selection, with: replacement, actionName: L10n.tr("Replace")) else { return NSSound.beep() }
-        adjustScope(by: replacement.utf16.count - selection.length)
 
         let after = NSRange(location: selection.location + replacement.utf16.count, length: 0)
         let newText = self.text
@@ -458,21 +463,32 @@ final class FindController: NSObject {
             cursor = edit.range.upperBound
         }
         guard textView.replaceFound(covered, with: result, actionName: L10n.tr("Replace All")) else { return NSSound.beep() }
-        adjustScope(by: result.utf16.count - covered.length)
         textView.selectFound(selectionScope ?? NSRange(location: covered.location, length: 0), indicate: false)
         bar.showStatus(L10n.tr("Replaced %ld", edits.count))
     }
 
-    private func adjustScope(by delta: Int) {
-        guard let scope = selectionScope else { return }
-        selectionScope = NSRange(location: scope.location, length: max(0, scope.length + delta))
-    }
-
     // MARK: Live updates
 
+    /// Characters changed: `range` is the new text, `delta` the change in length.
+    /// The scope keeps covering the same text. New text at its edges stays
+    /// out, and an emptied scope stays empty: nil would mean the whole document.
+    func textEdited(_ range: NSRange, changeInLength delta: Int) {
+        guard let scope = selectionScope else { return }
+        let start = range.location, newEnd = range.upperBound, oldEnd = newEnd - delta
+        func moved(_ position: Int, inside: Int) -> Int {
+            position <= start ? position : position >= oldEnd ? position + delta : inside
+        }
+        // An insertion right at the start goes before the scope.
+        let isAtStart = start == oldEnd && start == scope.location
+        let location = isAtStart ? scope.location + delta : moved(scope.location, inside: newEnd)
+        let end = isAtStart ? scope.upperBound + delta : moved(scope.upperBound, inside: start)
+        selectionScope = NSRange(location: location, length: max(0, end - location))
+    }
+
     /// The text was swapped for a different one (the viewer reloaded its
-    /// file): old offsets mean nothing now.
+    /// file, a tab was reverted): old offsets mean nothing now.
     func textWasReplaced() {
+        if inSelection { inSelection = false }
         selectionScope = nil
         anchor = 0
         textDidChange()

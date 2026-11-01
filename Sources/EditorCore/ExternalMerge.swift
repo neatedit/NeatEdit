@@ -67,6 +67,13 @@ public struct ExternalMerge: Sendable {
 
     public var isEmpty: Bool { hunks.isEmpty }
 
+    /// Lines added after the last line of the base (a log that grew).
+    public func addsToTheEnd(_ hunk: ExternalHunk) -> Bool {
+        // A final line break makes an empty last line, and what's added goes before it.
+        let end = baseLines.last == "" ? baseLines.count - 1 : baseLines.count
+        return hunk.base.oldRange.isEmpty && hunk.base.oldRange.lowerBound >= end
+    }
+
     /// Lines touched by the external change, counting the larger side of each hunk.
     private let changedLineCount: Int
     /// The longer of base and disk, in lines.

@@ -172,3 +172,4 @@
 "Some characters don't exist in the file's encoding." = "Unele caractere nu există în codificarea fișierului.";
 "Lines can't be edited in this file's encoding." = "Rândurile nu pot fi editate în codificarea acestui fișier.";
 "Syntax Highlighting" = "Evidențiere sintaxă";
+"Mixed" = "Mixte";

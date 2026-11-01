@@ -132,6 +132,47 @@ final class ViewerTailTests: XCTestCase {
         document.close()
     }
 
+    private func openWithMiddleAndEnd() throws -> (URL, TextDocument, LargeFileViewController, String) {
+        // The change is past both samples the tail compares.
+        let start = String(repeating: "a", count: 5_000) + "\n"
+        let end = String(repeating: "z", count: 5_000) + "\n"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).log")
+        try Data((start + "OLD\n" + end).utf8).write(to: url)
+        let (document, controller, _) = try open(url)
+        return (url, document, controller, start + "NEW\n" + end)
+    }
+
+    /// How other editors save: a new file takes the place of the old one.
+    func testAFileReplacedWithTheSameEndIsReloaded() throws {
+        let (url, document, controller, changed) = try openWithMiddleAndEnd()
+        defer { document.close() }
+        try Data(changed.utf8).write(to: url, options: .atomic)
+        let deadline = Date().addingTimeInterval(5)
+        while controller.model.storage.string != changed, Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+        XCTAssertEqual(controller.model.storage.string, changed)
+    }
+
+    func testASameSizeEditInPlaceIsReloaded() throws {
+        let (url, document, controller, changed) = try openWithMiddleAndEnd()
+        defer { document.close() }
+        try Data(changed.utf8).write(to: url)
+        waitForDisk(document) { controller.model.storage.string == changed }
+        XCTAssertEqual(controller.model.storage.string, changed)
+    }
+
+    func testAnAppendAfterAReplacementIsStillFollowed() throws {
+        let (url, document, controller, changed) = try openWithMiddleAndEnd()
+        defer { document.close() }
+        try Data(changed.utf8).write(to: url, options: .atomic)
+        let deadline = Date().addingTimeInterval(5)
+        while controller.model.storage.string != changed, Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+        // The new file needs a moment to be watched.
+        RunLoop.main.run(until: Date().addingTimeInterval(0.7))
+        try append("more\n", to: url)
+        waitForDisk(document) { controller.model.storage.string == changed + "more\n" }
+        XCTAssertEqual(controller.model.storage.string, changed + "more\n")
+    }
+
     func testTruncatedFileIsReloadedWhole() throws {
         let url = try makeLog(lines: 100)
         let (document, controller, _) = try open(url)

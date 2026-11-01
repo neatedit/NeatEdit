@@ -141,19 +141,30 @@ final class ChangeReviewController: NSViewController {
         rebuildRows()
     }
 
-    /// The file changed again while reviewing: keep decisions on hunks that are still there.
+    /// The file changed again while reviewing: a decision stays only with the
+    /// text it was made about.
     func update(merge: ExternalMerge) {
-        // A hunk that kept its place (e.g. a log tail that grew) keeps its decision.
-        var byPlace: [Range<Int>: HunkDecision] = [:]
+        var byPlace: [Range<Int>: (hunk: ExternalHunk, decision: HunkDecision)] = [:]
         for hunk in self.merge.hunks {
-            if let decision = decisions[hunk.id] { byPlace[hunk.base.oldRange] = decision }
+            if let decision = decisions[hunk.id] { byPlace[hunk.base.oldRange] = (hunk, decision) }
         }
         self.merge = merge
         decisions = [:]
         for hunk in merge.hunks {
-            if let decision = byPlace[hunk.base.oldRange] { decisions[hunk.id] = decision }
+            if let earlier = byPlace[hunk.base.oldRange], keepsDecision(hunk, from: earlier.hunk) {
+                decisions[hunk.id] = earlier.decision
+            }
         }
         if isViewLoaded { rebuildRows() }
+    }
+
+    /// The same change, or a log tail that only grew. A conflict must match
+    /// exactly: taking the disk's side replaces the user's text.
+    private func keepsDecision(_ hunk: ExternalHunk, from earlier: ExternalHunk) -> Bool {
+        guard hunk.oldLines == earlier.oldLines, hunk.mineLines == earlier.mineLines,
+              hunk.isConflict == earlier.isConflict else { return false }
+        if hunk.base.newLines == earlier.base.newLines { return true }
+        return !hunk.isConflict && merge.addsToTheEnd(hunk) && hunk.base.newLines.starts(with: earlier.base.newLines)
     }
 
     func decide(_ id: Int, _ decision: HunkDecision) {

@@ -27,8 +27,10 @@ public struct StatusLine: Equatable, Sendable {
     public var totals: String
     public var encoding: String
     public var lineEnding: LineEnding
+    public var hasMixedEndings: Bool
 
-    public var right: String { "\(totals)   \(encoding)   \(lineEnding.rawValue)" }
+    public var lineEndingTitle: String { hasMixedEndings ? L10n.tr("Mixed") : lineEnding.rawValue }
+    public var right: String { "\(totals)   \(encoding)   \(lineEndingTitle)" }
 
     public init(
         position: CursorPosition,
@@ -36,7 +38,8 @@ public struct StatusLine: Equatable, Sendable {
         totalCharacters: CharacterCount?,
         lines: Int,
         encoding: String,
-        lineEnding: LineEnding
+        lineEnding: LineEnding,
+        hasMixedEndings: Bool = false
     ) {
         let approx = position.isApproximate ? "~" : ""
         var left = L10n.tr("Ln %@, Col %@", Self.format(position.line), approx + Self.format(position.column))
@@ -51,6 +54,7 @@ public struct StatusLine: Equatable, Sendable {
         totals = L10n.tr("%@ chars, %@ lines", total, Self.format(lines))
         self.encoding = encoding
         self.lineEnding = lineEnding
+        self.hasMixedEndings = hasMixedEndings
     }
 
     private static func format(_ count: CharacterCount) -> String {
