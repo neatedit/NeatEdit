@@ -445,6 +445,42 @@ final class ExternalChangeTests: XCTestCase {
         XCTAssertEqual(review.decisions, [second.hunks[0].id: .accept])
     }
 
+    private func decisionAfterUpdate(
+        base: String, mine: String, firstDisk: String, secondMine: String? = nil, secondDisk: String
+    ) throws -> HunkDecision? {
+        let first = ExternalMerge(base: base, mine: mine, disk: firstDisk)
+        let review = ChangeReviewController(merge: first)
+        _ = review.view
+        let decided = try XCTUnwrap(first.hunks.first { $0.base.newLines != $0.mineLines })
+        review.decide(decided.id, .accept)
+        let second = ExternalMerge(base: base, mine: secondMine ?? mine, disk: secondDisk)
+        review.update(merge: second)
+        let hunk = try XCTUnwrap(second.hunks.first { $0.base.oldRange == decided.base.oldRange })
+        return review.decisions[hunk.id]
+    }
+
+    func testOtherTextInTheSameLinesNeedsANewDecision() throws {
+        XCTAssertNil(try decisionAfterUpdate(
+            base: "a\nb\nc\nd\ne", mine: "mine\nb\nc\nd\ne",
+            firstDisk: "a\nB1\nc\nd\ne", secondDisk: "a\nB2\nc\nd\ne"))
+    }
+
+    func testAConflictThatGrewNeedsANewDecision() throws {
+        XCTAssertNil(try decisionAfterUpdate(
+            base: "a\nb", mine: "a\nmine", firstDisk: "a\nB", secondDisk: "a\nB\nC"))
+    }
+
+    func testAConflictWithOtherTextOfMineNeedsANewDecision() throws {
+        XCTAssertNil(try decisionAfterUpdate(
+            base: "a\nb", mine: "a\nmine", firstDisk: "a\nB", secondMine: "a\nmine too", secondDisk: "a\nB"))
+    }
+
+    func testAnUnchangedConflictKeepsItsDecision() throws {
+        XCTAssertEqual(try decisionAfterUpdate(
+            base: "a\nb\nc\nd\ne", mine: "a\nmine\nc\nd\ne", firstDisk: "a\nB\nc\nd\ne",
+            secondDisk: "a\nB\nc\nd\nE"), .accept)
+    }
+
     func testSilentReloadUndoStoresOnlyTheChange() throws {
         let (document, controller, _) = try open("keep\nkeep\nkeep")
         controller.textView.setSelectedRange(NSRange(location: 14, length: 0))
