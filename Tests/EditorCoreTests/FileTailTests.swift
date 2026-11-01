@@ -26,9 +26,25 @@ struct FileTailTests {
         let size = disk.data.count
         disk.append("new line\n")
         #expect(update(&tail, disk) == .appended("new line\n"))
-        // The check sample just before the old end, then the new bytes.
-        #expect(disk.reads.allSatisfy { $0.lowerBound >= size - FileTail.sampleSize })
+        // The check samples at both ends of the old text, then the new bytes.
+        #expect(disk.reads.allSatisfy { $0.upperBound <= FileTail.sampleSize || $0.lowerBound >= size - FileTail.sampleSize })
         #expect(tail.byteCount == disk.data.count)
+    }
+
+    @Test func aChangedStartIsARewriteEvenIfTheEndIsTheSame() throws {
+        let rest = String(repeating: "x", count: 5_000)
+        let disk = Disk("OLD" + rest)
+        var tail = try #require(FileTail(data: disk.data, encoding: .utf8))
+        disk.data = Data(("NEW" + rest).utf8)
+        #expect(update(&tail, disk) == .rewritten)
+    }
+
+    @Test func aChangedStartIsARewriteEvenIfTheFileGrew() throws {
+        let rest = String(repeating: "x", count: 5_000)
+        let disk = Disk("OLD" + rest)
+        var tail = try #require(FileTail(data: disk.data, encoding: .utf8))
+        disk.data = Data(("NEW" + rest + " appended").utf8)
+        #expect(update(&tail, disk) == .rewritten)
     }
 
     @Test func sameSizeIsUnchanged() throws {

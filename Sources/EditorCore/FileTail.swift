@@ -13,8 +13,12 @@ public struct FileTail: Sendable {
 
     /// Bytes of the file accounted for, including `pending`.
     public private(set) var byteCount: Int
-    /// The last known bytes: if they're still there, the file only grew.
+    /// The last known bytes: if they're still there, the file probably only
+    /// grew. A change between `head` and `sample` goes unseen here; catching
+    /// it means reading the whole file.
     private var sample: Data
+    /// The first bytes, which a rewrite tends to touch and a log never does.
+    private let head: Data
     /// The start of a character whose remaining bytes haven't been written yet.
     private var pending = Data()
     private let encoding: String.Encoding
@@ -27,6 +31,7 @@ public struct FileTail: Sendable {
         self.encoding = encoding
         byteCount = data.count
         sample = Data(data.suffix(Self.sampleSize))
+        head = Data(data.prefix(Self.sampleSize))
     }
 
     private static let singleByte: [String.Encoding] = [
@@ -38,6 +43,8 @@ public struct FileTail: Sendable {
     public mutating func update(size: Int, read: (Range<Int>) throws -> Data) rethrows -> Change {
         guard size >= byteCount else { return .rewritten }
         guard try read(byteCount - sample.count..<byteCount) == sample else { return .rewritten }
+        // A file no longer than the sample has just been compared whole.
+        if byteCount > sample.count, try read(0..<head.count) != head { return .rewritten }
         guard size > byteCount else { return .unchanged }
 
         let chunk = try read(byteCount..<size)
