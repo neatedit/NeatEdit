@@ -518,7 +518,20 @@ public final class TextDocument: NSDocument {
         }
     }
 
+    /// A new tab with no text has nothing to keep: closing it doesn't ask.
+    override public func canClose(withDelegate delegate: Any, shouldClose shouldCloseSelector: Selector?, contextInfo: UnsafeMutableRawPointer?) {
+        if isEmptyUntitled { updateChangeCount(.changeCleared) }
+        super.canClose(withDelegate: delegate, shouldClose: shouldCloseSelector, contextInfo: contextInfo)
+    }
+
+    private var isEmptyUntitled: Bool { fileURL == nil && currentModel().storage.length == 0 }
+
     override public func close() {
+        // The draft that was deleted shouldn't stay behind as an autosaved copy.
+        if isEmptyUntitled, let copy = autosavedContentsFileURL {
+            try? FileManager.default.removeItem(at: copy)
+            autosavedContentsFileURL = nil
+        }
         savePosition()
         appendWatcher?.cancel()
         appendWatcher = nil
