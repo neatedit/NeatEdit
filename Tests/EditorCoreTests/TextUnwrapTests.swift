@@ -142,6 +142,8 @@ struct TextUnwrapTests {
         "services:\n  web:\n    image: registry.example.com/team/web-application-server:1.2.3\n    command: bundle exec puma -C config/puma.rb --environment production --port 3000\n    environment:\n      RAILS_ENV: production",
         // csv
         "id,name,email,created_at,updated_at,status,plan,country\n1,Alice,alice@example.com,2026-01-01,2026-02-01,active,pro,UA\n2,Bob,bob@example.com,2026-01-02,2026-02-02,active,free,PL\n3,Carol,carol@example.com,2026-01-03,2026-02-03,closed,pro,DE",
+        // spreadsheet rows (Google Sheets, Numbers, Excel copy cells with tabs)
+        "192.0.2.0 – 192.0.2.127\tExample Networks Ltd, Atlantis\t / 25\t09.08.2016\t1200\n192.0.2.128 – 192.0.2.255\tSample Fibre Co, Lemuria\t / 25\t17.08.2016\t1200\n198.51.100.0 – 198.51.100.63\tPlaceholder Telecom S.L.\t/26\t1.07.2021\t2400\n198.51.100.64 – 198.51.100.127\tFictional Broadband Group, Utopia\t / 26\t01.06.2021\t1200\n203.0.113.0 – 203.0.113.255\tDemo Link Partners\t/24\t01.07.2021\t600\n203.0.113.0 – 203.0.113.127\tTest Wireless\t / 25\t1.07.2022\t750",
         // logs
         "2026-10-28 22:01:13.456 INFO  [main] Starting application server on port 8080 with profile production and 16 workers\n2026-10-28 22:01:13.789 INFO  [main] Connected to database primary.example.internal:5432 in 120 ms\n2026-10-28 22:01:14.001 WARN  [pool-1] Slow query detected on table inventory_items, took 1530 ms to complete\n2026-10-28 22:01:14.002 INFO  [main] Ready",
         // java stack trace
