@@ -173,3 +173,7 @@
 "Lines can't be edited in this file's encoding." = "Οι γραμμές δεν μπορούν να επεξεργαστούν στην κωδικοποίηση αυτού του αρχείου.";
 "Syntax Highlighting" = "Επισήμανση σύνταξης";
 "Mixed" = "Μικτά";
+"Appearance" = "Εμφάνιση";
+"Same as System" = "Όπως το σύστημα";
+"Light" = "Ανοιχτόχρωμη";
+"Dark" = "Σκουρόχρωμη";

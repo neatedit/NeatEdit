@@ -173,3 +173,7 @@
 "Lines can't be edited in this file's encoding." = "Rândurile nu pot fi editate în codificarea acestui fișier.";
 "Syntax Highlighting" = "Evidențiere sintaxă";
 "Mixed" = "Mixte";
+"Appearance" = "Aspect";
+"Same as System" = "Ca sistemul";
+"Light" = "Luminos";
+"Dark" = "Întunecat";

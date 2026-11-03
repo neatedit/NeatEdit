@@ -173,3 +173,7 @@
 "Lines can't be edited in this file's encoding." = "Selle faili kodeeringus ei saa ridu muuta.";
 "Syntax Highlighting" = "Süntaksi esiletõstmine";
 "Mixed" = "Segatud";
+"Appearance" = "Välimus";
+"Same as System" = "Nagu süsteemis";
+"Light" = "Hele";
+"Dark" = "Tume";

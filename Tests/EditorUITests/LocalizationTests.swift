@@ -21,7 +21,7 @@ final class LocalizationTests: XCTestCase {
 
     /// Keys the sources pass to L10n: tr("…") calls, menu builder titles and the Text menu.
     private func keysInSources() throws -> Set<String> {
-        var keys = Set(TextTransform.allCases.map(\.englishTitle))
+        var keys = Set(TextTransform.allCases.map(\.englishTitle) + Preferences.Appearance.allCases.map(\.englishTitle))
         let sources = root.appendingPathComponent("Sources")
         let files = FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil)!
             .compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" }

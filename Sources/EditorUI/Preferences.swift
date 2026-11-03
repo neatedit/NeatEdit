@@ -18,6 +18,7 @@ public enum Preferences {
     private static let invisiblesKey = "showInvisibles"
     private static let currentLineKey = "highlightCurrentLine"
     private static let syntaxKey = "highlightSyntax"
+    private static let appearanceKey = "appearance"
     private static let filePositionsKey = "filePositions"
     static let defaultFontSize: CGFloat = 13
 
@@ -86,6 +87,34 @@ public enum Preferences {
     public static var unwrapsPastedText: Bool {
         get { defaults.bool(forKey: unwrapPasteKey) }
         set { set(newValue, forKey: unwrapPasteKey) }
+    }
+
+    /// Light or dark windows, or whatever the system uses.
+    public enum Appearance: String, CaseIterable {
+        case system, light, dark
+
+        /// What NSApp.appearance takes; nil follows the system.
+        var nsAppearance: NSAppearance? {
+            switch self {
+            case .system: nil
+            case .light: NSAppearance(named: .aqua)
+            case .dark: NSAppearance(named: .darkAqua)
+            }
+        }
+
+        /// The English menu title (translated by the menu builder).
+        var englishTitle: String {
+            switch self {
+            case .system: "Same as System"
+            case .light: "Light"
+            case .dark: "Dark"
+            }
+        }
+    }
+
+    public static var appearance: Appearance {
+        get { defaults.string(forKey: appearanceKey).flatMap(Appearance.init(rawValue:)) ?? .system }
+        set { set(newValue.rawValue, forKey: appearanceKey) }
     }
 
     private static var filePositions: FilePositions {

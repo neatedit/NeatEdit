@@ -173,3 +173,7 @@
 "Lines can't be edited in this file's encoding." = "V kodiranju te datoteke vrstic ni mogoče urejati.";
 "Syntax Highlighting" = "Označevanje sintakse";
 "Mixed" = "Mešani";
+"Appearance" = "Videz";
+"Same as System" = "Kot sistem";
+"Light" = "Svetlo";
+"Dark" = "Temno";

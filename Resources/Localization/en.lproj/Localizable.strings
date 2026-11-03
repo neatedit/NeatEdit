@@ -173,3 +173,7 @@
 "Lines can't be edited in this file's encoding." = "Lines can't be edited in this file's encoding.";
 "Syntax Highlighting" = "Syntax Highlighting";
 "Mixed" = "Mixed";
+"Appearance" = "Appearance";
+"Same as System" = "Same as System";
+"Light" = "Light";
+"Dark" = "Dark";

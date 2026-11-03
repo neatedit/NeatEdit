@@ -173,3 +173,7 @@
 "Lines can't be edited in this file's encoding." = "Ennek a fájlnak a kódolásában a sorok nem szerkeszthetők.";
 "Syntax Highlighting" = "Szintaxiskiemelés";
 "Mixed" = "Vegyes";
+"Appearance" = "Megjelenés";
+"Same as System" = "A rendszer szerint";
+"Light" = "Világos";
+"Dark" = "Sötét";

@@ -173,3 +173,7 @@
 "Lines can't be edited in this file's encoding." = "Rader kan inte redigeras i den här filens teckenkodning.";
 "Syntax Highlighting" = "Syntaxmarkering";
 "Mixed" = "Blandade";
+"Appearance" = "Utseende";
+"Same as System" = "Som systemet";
+"Light" = "Ljust";
+"Dark" = "Mörkt";

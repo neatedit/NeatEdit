@@ -1,15 +1,32 @@
 import AppKit
 import EditorCore
 
-public final class AppDelegate: NSObject, NSApplicationDelegate {
+public final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     override public init() {
         super.init()
     }
 
     public func applicationWillFinishLaunching(_ notification: Notification) {
         Preferences.registerDefaults()
+        NSApp.appearance = Preferences.appearance.nsAppearance
         NSWindow.allowsAutomaticWindowTabbing = true
         NSApp.mainMenu = MainMenu.make()
+    }
+
+    /// View → Appearance; the item's tag is the choice's index.
+    @objc func chooseAppearance(_ sender: NSMenuItem) {
+        let all = Preferences.Appearance.allCases
+        guard all.indices.contains(sender.tag) else { return }
+        Preferences.appearance = all[sender.tag]
+        NSApp.appearance = Preferences.appearance.nsAppearance
+    }
+
+    public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(chooseAppearance(_:)) {
+            let all = Preferences.Appearance.allCases
+            menuItem.state = all.indices.contains(menuItem.tag) && all[menuItem.tag] == Preferences.appearance ? .on : .off
+        }
+        return true
     }
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
@@ -152,6 +169,11 @@ enum MainMenu {
             item("Show Invisibles", #selector(EditorViewController.toggleInvisibles(_:)), "i", [.command, .option]),
             item("Highlight Current Line", #selector(EditorViewController.toggleCurrentLine(_:))),
             item("Syntax Highlighting", #selector(EditorViewController.toggleSyntaxHighlighting(_:))),
+            submenu("Appearance", Preferences.Appearance.allCases.enumerated().map { index, choice in
+                let item = item(localized: L10n.tr(choice.englishTitle), #selector(AppDelegate.chooseAppearance(_:)))
+                item.tag = index
+                return item
+            }),
             .separator(),
             item("Bigger", #selector(EditorViewController.makeTextBigger(_:)), "+"),
             item("Smaller", #selector(EditorViewController.makeTextSmaller(_:)), "-"),

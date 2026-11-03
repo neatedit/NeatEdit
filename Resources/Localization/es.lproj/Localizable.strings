@@ -173,3 +173,7 @@
 "Lines can't be edited in this file's encoding." = "No se pueden editar líneas en la codificación de este archivo.";
 "Syntax Highlighting" = "Resaltado de sintaxis";
 "Mixed" = "Mixtos";
+"Appearance" = "Apariencia";
+"Same as System" = "Igual que el sistema";
+"Light" = "Clara";
+"Dark" = "Oscura";

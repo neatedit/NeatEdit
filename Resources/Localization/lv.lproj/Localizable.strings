@@ -173,3 +173,7 @@
 "Lines can't be edited in this file's encoding." = "Šī faila kodējumā rindas nevar rediģēt.";
 "Syntax Highlighting" = "Sintakses izcelšana";
 "Mixed" = "Jaukti";
+"Appearance" = "Izskats";
+"Same as System" = "Kā sistēmā";
+"Light" = "Gaišs";
+"Dark" = "Tumšs";

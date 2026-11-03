@@ -173,3 +173,7 @@
 "Lines can't be edited in this file's encoding." = "Regels kunnen niet worden gewijzigd in de codering van dit bestand.";
 "Syntax Highlighting" = "Syntaxismarkering";
 "Mixed" = "Gemengd";
+"Appearance" = "Weergave";
+"Same as System" = "Zoals het systeem";
+"Light" = "Licht";
+"Dark" = "Donker";

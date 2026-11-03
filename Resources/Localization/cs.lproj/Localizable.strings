@@ -173,3 +173,7 @@
 "Lines can't be edited in this file's encoding." = "V kódování tohoto souboru nelze řádky upravovat.";
 "Syntax Highlighting" = "Zvýrazňování syntaxe";
 "Mixed" = "Smíšené";
+"Appearance" = "Vzhled";
+"Same as System" = "Podle systému";
+"Light" = "Světlý";
+"Dark" = "Tmavý";

@@ -173,3 +173,7 @@
 "Lines can't be edited in this file's encoding." = "Tämän tiedoston merkistökoodauksessa rivejä ei voi muokata.";
 "Syntax Highlighting" = "Syntaksin korostus";
 "Mixed" = "Sekalaiset";
+"Appearance" = "Ulkoasu";
+"Same as System" = "Kuten järjestelmässä";
+"Light" = "Vaalea";
+"Dark" = "Tumma";

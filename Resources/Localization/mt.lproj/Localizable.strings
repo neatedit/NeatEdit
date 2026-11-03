@@ -173,3 +173,7 @@
 "Lines can't be edited in this file's encoding." = "Il-linji ma jistgħux jiġu editjati fl-encoding ta’ dan il-fajl.";
 "Syntax Highlighting" = "Enfasi tas-sintassi";
 "Mixed" = "Imħallta";
+"Appearance" = "Dehra";
+"Same as System" = "Bħas-sistema";
+"Light" = "Ċar";
+"Dark" = "Skur";

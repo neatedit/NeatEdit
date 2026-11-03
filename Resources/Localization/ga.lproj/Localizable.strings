@@ -173,3 +173,7 @@
 "Lines can't be edited in this file's encoding." = "Ní féidir línte a chur in eagar in ionchódú an chomhaid seo.";
 "Syntax Highlighting" = "Béim ar chomhréir";
 "Mixed" = "Measctha";
+"Appearance" = "Cuma";
+"Same as System" = "Mar an gcóras";
+"Light" = "Geal";
+"Dark" = "Dorcha";
