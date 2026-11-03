@@ -98,6 +98,9 @@ public enum TextUnwrap {
             var signals = 0
             var nonEmpty = 0
             for (i, line) in lines.enumerated() where !line.frozen && !line.content.isEmpty {
+                // A tab past the indent separates cells (spreadsheets, TSV);
+                // terminals print prose with spaces only.
+                if line.content.contains("\t") { return true }
                 nonEmpty += 1
                 let content = line.content
                 let next = i + 1 < lines.count ? lines[i + 1] : nil
