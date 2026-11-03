@@ -173,3 +173,7 @@
 "Lines can't be edited in this file's encoding." = "Šio failo koduotėje eilučių redaguoti negalima.";
 "Syntax Highlighting" = "Sintaksės paryškinimas";
 "Mixed" = "Mišrūs";
+"Appearance" = "Išvaizda";
+"Same as System" = "Kaip sistemoje";
+"Light" = "Šviesi";
+"Dark" = "Tamsi";

@@ -173,3 +173,7 @@
 "Lines can't be edited in this file's encoding." = "Редовете не могат да се редактират в кодирането на този файл.";
 "Syntax Highlighting" = "Оцветяване на синтаксиса";
 "Mixed" = "Смесени";
+"Appearance" = "Облик";
+"Same as System" = "Като системата";
+"Light" = "Светъл";
+"Dark" = "Тъмен";

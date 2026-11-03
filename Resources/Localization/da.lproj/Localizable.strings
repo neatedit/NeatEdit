@@ -173,3 +173,7 @@
 "Lines can't be edited in this file's encoding." = "Linjer kan ikke redigeres i denne fils tegnkodning.";
 "Syntax Highlighting" = "Syntaksfremhævning";
 "Mixed" = "Blandet";
+"Appearance" = "Udseende";
+"Same as System" = "Som systemet";
+"Light" = "Lyst";
+"Dark" = "Mørkt";
