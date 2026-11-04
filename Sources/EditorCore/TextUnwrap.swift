@@ -18,17 +18,20 @@ public enum TextUnwrap {
         guard text.utf8.count <= maxAutoLength else { return nil }
         let block = Block(text)
         guard block.lines.count >= 2, block.width >= minWidth, !block.looksLikeCodeOrData else { return nil }
-        let points = block.wrapPoints(nearWidthOnly: true)
+        // Evidence: breaks where the next word could not have fit.
+        let points = block.wrapPoints(nearWidthOnly: true, requireFit: true)
         // One wrap is enough when the block has a terminal-style margin.
         guard points.count >= 2 || (points.count == 1 && block.hasMargin) else { return nil }
-        let result = block.render(joining: points)
+        // Hand-wrapped prose has a ragged edge, so once the block is known to
+        // be wrapped every near-width break inside a paragraph is joined.
+        let result = block.render(joining: block.wrapPoints(nearWidthOnly: true, requireFit: false))
         return result == text ? nil : result
     }
 
     /// Always unwraps (an explicit command on a selection).
     public static func unwrap(_ text: String) -> String {
         let block = Block(text)
-        return block.render(joining: block.wrapPoints(nearWidthOnly: false))
+        return block.render(joining: block.wrapPoints(nearWidthOnly: false, requireFit: false))
     }
 
     private struct Line {
@@ -120,9 +123,10 @@ public enum TextUnwrap {
             return signals >= 2 && signals * 4 >= nonEmpty
         }
 
-        /// Lines the terminal broke: the next line's first word would have
-        /// fit on them otherwise, and it continues the same paragraph.
-        func wrapPoints(nearWidthOnly: Bool) -> Set<Int> {
+        /// Lines broken inside a paragraph: the next line continues it. With
+        /// `requireFit`, only breaks a terminal made (the next line's first
+        /// word would have fit otherwise).
+        func wrapPoints(nearWidthOnly: Bool, requireFit: Bool) -> Set<Int> {
             var points = Set<Int>()
             // Where a continuation line may start: under the paragraph's text,
             // or (for list items, as some renderers do) under the marker.
@@ -138,7 +142,7 @@ public enum TextUnwrap {
                 guard Self.quoteMarks(next.prefix) == Self.quoteMarks(line.prefix), continuation.contains(next.prefix.count) else { continue }
                 if nearWidthOnly, line.width < width - nearWidth { continue }
                 let firstWord = next.content.prefix(while: { $0 != " " })
-                if line.width + 1 + Self.columns(firstWord) > width { points.insert(i) }
+                if !requireFit || line.width + 1 + Self.columns(firstWord) > width { points.insert(i) }
             }
             return points
         }

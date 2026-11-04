@@ -122,6 +122,61 @@ struct TextUnwrapTests {
         #expect(TextUnwrap.unwrap(pasted) == sentence)
     }
 
+    /// Prose a person (or a model) broke by hand at about 70 columns: the
+    /// right edge is ragged, so the next word often would have fit.
+    private let raggedLetter = """
+          Hi team,
+
+          The backup job on our staging cluster stopped running last Friday.
+          The scheduler marks it as "stale", logs no output and skips every retry
+          until someone restarts it. The nightly archive is now missing.
+
+          Cluster: #000000, 192.0.2.44 (staging.example.com)
+
+          BROKEN job - please check:
+            nightly-archive, ID: JOB-0000-1111 (queue: low)
+
+          WORKING job - leave as is, it covers the only offsite copy:
+            weekly-archive, ID: JOB-0000-2222 (queue: high)
+
+          The job runs under the old cron runner. Please confirm that the
+          runner points to the current config file and page the on-call person
+          if it does not start again.
+
+          Thanks
+        """
+
+    private let raggedLetterUnwrapped = """
+        Hi team,
+
+        The backup job on our staging cluster stopped running last Friday. The scheduler marks it as "stale", logs no output and skips every retry until someone restarts it. The nightly archive is now missing.
+
+        Cluster: #000000, 192.0.2.44 (staging.example.com)
+
+        BROKEN job - please check:
+          nightly-archive, ID: JOB-0000-1111 (queue: low)
+
+        WORKING job - leave as is, it covers the only offsite copy:
+          weekly-archive, ID: JOB-0000-2222 (queue: high)
+
+        The job runs under the old cron runner. Please confirm that the runner points to the current config file and page the on-call person if it does not start again.
+
+        Thanks
+        """
+
+    @Test func raggedHandWrappedProseIsUnwrappedWholeOnPaste() {
+        #expect(TextUnwrap.unwrapIfWrapped(raggedLetter) == raggedLetterUnwrapped)
+    }
+
+    @Test func raggedHandWrappedProseIsUnwrappedWholeByCommand() {
+        #expect(TextUnwrap.unwrap(raggedLetter) == raggedLetterUnwrapped)
+    }
+
+    @Test func commandJoinsShortHandWrappedLinesOfAParagraph() {
+        let text = "Please call me back\nwhen you get this.\n\nThanks"
+        #expect(TextUnwrap.unwrap(text) == "Please call me back when you get this.\n\nThanks")
+    }
+
     @Test func keepsWindowsLineEndings() {
         let pasted = (wrap(sentence, width: 80) + ["", "  End."]).joined(separator: "\r\n")
         #expect(TextUnwrap.unwrapIfWrapped(pasted) == sentence + "\r\n\r\nEnd.")
