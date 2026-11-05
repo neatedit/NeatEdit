@@ -164,7 +164,15 @@ public final class PlainTextView: NSTextView, NSLayoutManagerDelegate {
         // Re-applying the same font would invalidate layout of the whole document.
         if self.font == font, typingAttributes[.font] as? NSFont == font { return }
         self.font = font
-        typingAttributes = [.font: font, .foregroundColor: NSColor.textColor]
+        // AppKit's default style has only 12 tab stops (~336pt) and wraps any
+        // tab past the last one, which breaks rows pasted from a spreadsheet.
+        // No fixed stops: every tab goes to the next multiple of the interval.
+        let style = NSMutableParagraphStyle()
+        style.tabStops = []
+        style.defaultTabInterval = (String(repeating: " ", count: TextTransform.defaultTabWidth) as NSString)
+            .size(withAttributes: [.font: font]).width
+        defaultParagraphStyle = style
+        typingAttributes = [.font: font, .foregroundColor: NSColor.textColor, .paragraphStyle: style]
         if let storage = textStorage, storage.length > 0 {
             storage.addAttributes(typingAttributes, range: NSRange(location: 0, length: storage.length))
         }
