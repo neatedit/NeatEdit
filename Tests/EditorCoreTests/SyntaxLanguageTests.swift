@@ -188,6 +188,8 @@ struct SyntaxLanguageTests {
         let text = "<?php\n" + String(repeating: "function go($a) { return \"x\" . 12; } // note\n", count: 45_000)
         let start = Date()
         #expect(!SyntaxLanguage.php.tokens(in: text).isEmpty)
-        #expect(Date().timeIntervalSince(start) < 3, "debug build")
+        // A shared CI runner is several times slower and far less even.
+        let limit: TimeInterval = ProcessInfo.processInfo.environment["CI"] == nil ? 3 : 10
+        #expect(Date().timeIntervalSince(start) < limit, "debug build")
     }
 }
