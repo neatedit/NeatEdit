@@ -193,8 +193,12 @@ final class SyntaxColoringTests: XCTestCase {
         defer { document.close() }
         let coloring = controller.syntaxColoring
         wait { coloring.color(at: 0) != nil }
-        // Painted afresh for the small window: the first pass may have reached
-        // further than any window on a small screen (a laptop, a CI runner) can grow.
+        // Painted afresh once every line is laid out. Until then the layout
+        // manager only estimates where lines are, and the first pass colours
+        // some 2200 pt down: further than a window can grow on a small screen
+        // (a laptop, a CI runner), which would leave nothing new to show.
+        let textView = controller.textView
+        try XCTUnwrap(textView.layoutManager).ensureLayout(for: try XCTUnwrap(textView.textContainer))
         controller.toggleSyntaxHighlighting(nil)
         wait { coloring.color(at: 0) == nil }
         controller.toggleSyntaxHighlighting(nil)
