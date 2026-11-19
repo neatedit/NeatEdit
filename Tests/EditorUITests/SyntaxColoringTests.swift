@@ -196,9 +196,17 @@ final class SyntaxColoringTests: XCTestCase {
         // The first line past what's been painted so far.
         let starts = controller.model.lineIndex.starts
         let row = try XCTUnwrap(starts.first { coloring.color(at: $0) == nil })
-        controller.view.window?.setContentSize(NSSize(width: 500, height: 3000))
+        // Document windows cascade down the screen from test to test; on a
+        // small display one that sits low has no room left to grow.
+        let window = try XCTUnwrap(controller.view.window)
+        if let screen = window.screen ?? NSScreen.main {
+            window.setFrameTopLeftPoint(NSPoint(x: screen.visibleFrame.minX, y: screen.visibleFrame.maxY))
+        }
+        window.setContentSize(NSSize(width: 500, height: 3000))
         wait { coloring.color(at: row) != nil }
-        XCTAssertEqual(coloring.color(at: row), .syntax(.keyword))
+        XCTAssertEqual(
+            coloring.color(at: row), .syntax(.keyword),
+            "row \(row), window \(window.frame), screen \(String(describing: window.screen?.visibleFrame)), visible \(controller.textView.visibleRect)")
     }
 
     func testTurnedOffWhileTheFirstScanRunsStaysOff() throws {
