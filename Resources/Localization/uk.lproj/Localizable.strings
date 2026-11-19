@@ -118,7 +118,7 @@
 "File changed on disk" = "Файл змінено на диску";
 "Save My Version As…" = "Зберегти мою версію як…";
 "Comparing…" = "Порівняння…";
-"Deleted from disk" = "Видалено з диска";
+"Deleted from disk. Saving will create it again." = "Видалено з диска. Збереження створить файл знову.";
 "Changes made on disk" = "Зміни на диску";
 "Choose which changes to bring into your text. Changes you don't decide on are skipped." = "Виберіть, які зміни перенести у ваш текст. Зміни, щодо яких ви не вирішили, буде пропущено.";
 "Apply" = "Застосувати";

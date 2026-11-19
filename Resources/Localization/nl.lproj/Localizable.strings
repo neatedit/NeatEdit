@@ -118,7 +118,7 @@
 "File changed on disk" = "Bestand gewijzigd op schijf";
 "Save My Version As…" = "Bewaar mijn versie als…";
 "Comparing…" = "Vergelijken…";
-"Deleted from disk" = "Verwijderd van schijf";
+"Deleted from disk. Saving will create it again." = "Verwijderd van schijf. Bij bewaren wordt het bestand opnieuw aangemaakt.";
 "Changes made on disk" = "Wijzigingen op schijf";
 "Choose which changes to bring into your text. Changes you don't decide on are skipped." = "Kies welke wijzigingen je in je tekst wilt overnemen. Wijzigingen waarover je niet beslist, worden overgeslagen.";
 "Apply" = "Pas toe";

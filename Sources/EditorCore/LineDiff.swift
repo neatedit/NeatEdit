@@ -113,3 +113,55 @@ public enum LineDiff {
         return result.reversed()
     }
 }
+
+extension LineEnding {
+    /// `text` (LF line endings) with the line endings of `original` put back:
+    /// a line that stands in both ends the way it did, a line rewritten in
+    /// place keeps the ending of the line it replaces, and only lines that
+    /// are new end with `self`.
+    public func restoring(endingsOf original: String, in text: String) -> String {
+        let oldLines = normalizedLines(original)
+        let newLines = normalizedLines(text)
+        let oldEndings = Self.endings(in: original)
+        // The last line has no ending; one that is no longer last gets `self`.
+        func ending(ofOld index: Int) -> String? { index < oldEndings.count ? oldEndings[index].string : nil }
+
+        var endings: [String?] = []
+        endings.reserveCapacity(newLines.count)
+        var position = 0
+        for hunk in LineDiff.hunks(old: oldLines, new: newLines) {
+            for index in position..<hunk.oldRange.lowerBound { endings.append(ending(ofOld: index)) }
+            if hunk.newLines.count == hunk.oldRange.count {
+                for index in hunk.oldRange { endings.append(ending(ofOld: index)) }
+            } else {
+                endings.append(contentsOf: repeatElement(nil, count: hunk.newLines.count))
+            }
+            position = hunk.oldRange.upperBound
+        }
+        for index in position..<oldLines.count { endings.append(ending(ofOld: index)) }
+
+        var out = ""
+        out.reserveCapacity(text.utf8.count + newLines.count)
+        for (index, line) in newLines.enumerated() {
+            out += line
+            if index < newLines.count - 1 { out += endings[index] ?? string }
+        }
+        return out
+    }
+
+    /// Every line break of `text`, in order.
+    static func endings(in text: String) -> [LineEnding] {
+        var out: [LineEnding] = []
+        var previousWasCR = false
+        for byte in text.utf8 {
+            if byte == 0x0A {
+                out.append(previousWasCR ? .crlf : .lf)
+            } else if previousWasCR {
+                out.append(.cr)
+            }
+            previousWasCR = byte == 0x0D
+        }
+        if previousWasCR { out.append(.cr) }
+        return out
+    }
+}

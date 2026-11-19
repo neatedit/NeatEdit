@@ -118,7 +118,7 @@
 "File changed on disk" = "Tiedosto muuttui levyllä";
 "Save My Version As…" = "Tallenna oma versio nimellä…";
 "Comparing…" = "Verrataan…";
-"Deleted from disk" = "Poistettu levyltä";
+"Deleted from disk. Saving will create it again." = "Poistettu levyltä. Tallentaminen luo tiedoston uudelleen.";
 "Changes made on disk" = "Levyllä tehdyt muutokset";
 "Choose which changes to bring into your text. Changes you don't decide on are skipped." = "Valitse, mitkä muutokset tuodaan tekstiisi. Muutokset, joista et päätä, ohitetaan.";
 "Apply" = "Käytä";

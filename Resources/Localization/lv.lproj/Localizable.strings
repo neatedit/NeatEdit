@@ -118,7 +118,7 @@
 "File changed on disk" = "Fails diskā ir mainīts";
 "Save My Version As…" = "Saglabāt manu versiju kā…";
 "Comparing…" = "Salīdzina…";
-"Deleted from disk" = "Izdzēsts no diska";
+"Deleted from disk. Saving will create it again." = "Izdzēsts no diska. Saglabājot fails tiks izveidots no jauna.";
 "Changes made on disk" = "Izmaiņas diskā";
 "Choose which changes to bring into your text. Changes you don't decide on are skipped." = "Izvēlieties, kuras izmaiņas pārnest savā tekstā. Izmaiņas, par kurām neizlemjat, tiek izlaistas.";
 "Apply" = "Lietot";

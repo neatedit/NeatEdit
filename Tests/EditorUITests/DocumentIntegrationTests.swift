@@ -73,6 +73,18 @@ final class DocumentIntegrationTests: XCTestCase {
         XCTAssertEqual(try document.data(ofType: "public.plain-text"), Data("a\nb".utf8))
     }
 
+    func testCaretStaysOnItsCharacterWhenLineEndingsAreConverted() throws {
+        let (_, controller) = try open(Data("a\nb\nc".utf8))
+        controller.textView.setSelectedRange(NSRange(location: 4, length: 0))
+        controller.setLineEnding(.crlf)
+        XCTAssertEqual(controller.textView.string, "a\r\nb\r\nc")
+        XCTAssertEqual(controller.textView.selectedRange(), NSRange(location: 6, length: 0))
+
+        controller.textView.setSelectedRange(NSRange(location: 4, length: 3))
+        controller.setLineEnding(.lf)
+        XCTAssertEqual(controller.textView.selectedRange(), NSRange(location: 3, length: 2))
+    }
+
     func testMixedLineEndingsShowInTheStatusBarWithNoChoiceChecked() throws {
         let (_, controller) = try open(Data("a\r\nb\nc".utf8))
         XCTAssertEqual(controller.statusBar.lineEndingButton.title, "Mixed")
@@ -134,6 +146,23 @@ final class DocumentIntegrationTests: XCTestCase {
         XCTAssertEqual(try document.data(ofType: "public.plain-text"), Data([0xFF, 0xFE, 0x68, 0x00, 0x69, 0x00]))
         XCTAssertEqual(controller.statusBar.encodingButton.title, "UTF-16 LE")
         XCTAssertTrue(document.isDocumentEdited)
+    }
+
+    func testSaveWithEncodingUTF8DropsTheBOM() throws {
+        let (document, controller) = try open(Data([0xEF, 0xBB, 0xBF]) + Data("hi".utf8))
+        XCTAssertEqual(controller.statusBar.encodingButton.title, "UTF-8 BOM")
+        XCTAssertTrue(controller.applySaveEncoding(.utf8))
+        drainMainQueue()
+        XCTAssertEqual(try document.data(ofType: "public.plain-text"), Data("hi".utf8))
+        XCTAssertEqual(controller.statusBar.encodingButton.title, "UTF-8")
+        XCTAssertTrue(document.isDocumentEdited)
+    }
+
+    func testSaveWithTheSameEncodingLeavesTheTabClean() throws {
+        let (document, controller) = try open(Data("hi".utf8))
+        XCTAssertTrue(controller.applySaveEncoding(.utf8))
+        drainMainQueue()
+        XCTAssertFalse(document.isDocumentEdited)
     }
 
     func testSaveWithEncodingRefusesTextThatDoesNotFit() throws {

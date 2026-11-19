@@ -118,7 +118,7 @@
 "File changed on disk" = "Filen har ändrats på disken";
 "Save My Version As…" = "Spara min version som…";
 "Comparing…" = "Jämför…";
-"Deleted from disk" = "Raderad från disken";
+"Deleted from disk. Saving will create it again." = "Raderad från disken. Filen skapas på nytt när du sparar.";
 "Changes made on disk" = "Ändringar på disken";
 "Choose which changes to bring into your text. Changes you don't decide on are skipped." = "Välj vilka ändringar som ska föras in i din text. Ändringar du inte tar ställning till hoppas över.";
 "Apply" = "Verkställ";

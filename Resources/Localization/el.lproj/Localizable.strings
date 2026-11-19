@@ -118,7 +118,7 @@
 "File changed on disk" = "Το αρχείο άλλαξε στον δίσκο";
 "Save My Version As…" = "Αποθήκευση της έκδοσής μου ως…";
 "Comparing…" = "Σύγκριση…";
-"Deleted from disk" = "Διαγράφηκε από τον δίσκο";
+"Deleted from disk. Saving will create it again." = "Διαγράφηκε από τον δίσκο. Με την αποθήκευση θα δημιουργηθεί ξανά.";
 "Changes made on disk" = "Αλλαγές στον δίσκο";
 "Choose which changes to bring into your text. Changes you don't decide on are skipped." = "Επιλέξτε ποιες αλλαγές θα μεταφερθούν στο κείμενό σας. Οι αλλαγές για τις οποίες δεν αποφασίσετε παραλείπονται.";
 "Apply" = "Εφαρμογή";

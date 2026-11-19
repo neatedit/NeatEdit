@@ -63,4 +63,32 @@ struct LineDiffTests {
         #expect(hunks.count == 10)
         #expect(hunks[0] == DiffHunk(oldRange: 5_000..<5_001, newLines: ["changed 5000"]))
     }
+
+    // MARK: Line endings carried over
+
+    @Test func untouchedLinesKeepTheirOwnEndings() {
+        #expect(LineEnding.crlf.restoring(endingsOf: "a\r\nb\nc\rd", in: "a\nb\nc\nd") == "a\r\nb\nc\rd")
+    }
+
+    @Test func addedLinesTakeTheGivenEnding() {
+        #expect(LineEnding.crlf.restoring(endingsOf: "a\r\nb\nc", in: "a\nnew\nb\nc") == "a\r\nnew\r\nb\nc")
+        #expect(LineEnding.lf.restoring(endingsOf: "a\r\nb\nc", in: "a\nnew\nb\nc") == "a\r\nnew\nb\nc")
+    }
+
+    @Test func aRewrittenLineKeepsTheEndingItHad() {
+        #expect(LineEnding.crlf.restoring(endingsOf: "a\r\nb\nc\r\nd", in: "a\nB\nc\nd") == "a\r\nB\nc\r\nd")
+    }
+
+    @Test func linesAfterTheOldLastLineGetAnEnding() {
+        #expect(LineEnding.crlf.restoring(endingsOf: "a\r\nb\nc", in: "a\nb\nc\nd\ne") == "a\r\nb\nc\r\nd\r\ne")
+    }
+
+    @Test func aRemovedLineTakesItsEndingAlong() {
+        #expect(LineEnding.crlf.restoring(endingsOf: "a\r\nb\nc\nd", in: "a\nc\nd") == "a\r\nc\nd")
+        #expect(LineEnding.crlf.restoring(endingsOf: "a\r\nb\nc", in: "a\nb") == "a\r\nb")
+    }
+
+    @Test func aTrailingLineBreakStaysAsItWas() {
+        #expect(LineEnding.crlf.restoring(endingsOf: "a\r\nb\n", in: "a\nB\n") == "a\r\nB\n")
+    }
 }

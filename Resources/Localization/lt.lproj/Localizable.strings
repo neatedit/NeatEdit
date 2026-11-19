@@ -118,7 +118,7 @@
 "File changed on disk" = "Failas diske pasikeitė";
 "Save My Version As…" = "Įrašyti mano versiją kaip…";
 "Comparing…" = "Lyginama…";
-"Deleted from disk" = "Ištrinta iš disko";
+"Deleted from disk. Saving will create it again." = "Ištrinta iš disko. Išsaugant failas bus sukurtas iš naujo.";
 "Changes made on disk" = "Pakeitimai diske";
 "Choose which changes to bring into your text. Changes you don't decide on are skipped." = "Pasirinkite, kuriuos pakeitimus perkelti į savo tekstą. Pakeitimai, dėl kurių nenuspręsite, praleidžiami.";
 "Apply" = "Taikyti";

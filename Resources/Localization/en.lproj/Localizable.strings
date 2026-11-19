@@ -118,7 +118,7 @@
 "File changed on disk" = "File changed on disk";
 "Save My Version As…" = "Save My Version As…";
 "Comparing…" = "Comparing…";
-"Deleted from disk" = "Deleted from disk";
+"Deleted from disk. Saving will create it again." = "Deleted from disk. Saving will create it again.";
 "Changes made on disk" = "Changes made on disk";
 "Choose which changes to bring into your text. Changes you don't decide on are skipped." = "Choose which changes to bring into your text. Changes you don't decide on are skipped.";
 "Apply" = "Apply";

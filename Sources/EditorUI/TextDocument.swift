@@ -360,7 +360,9 @@ public final class TextDocument: NSDocument {
     // MARK: External changes
 
     override public func accommodatePresentedItemDeletion(completionHandler: @escaping (Error?) -> Void) {
-        DispatchQueue.main.async { self.diskDidChange(nil) }
+        // Another app saving atomically announces a deletion too, and the file
+        // is back a moment later: look at the disk instead of taking its word.
+        DispatchQueue.main.async { self.scheduleDiskCheck() }
         completionHandler(nil)
     }
 
@@ -732,7 +734,10 @@ public final class TextDocument: NSDocument {
     func applyReview(_ decisions: [Int: HunkDecision]) {
         guard case .changed(_, let disk) = externalState, let merge = currentMerge(), let model else { return }
         let merged = merge.apply(decisions)
-        let text = model.lineEnding == .lf ? merged : model.lineEnding.apply(to: merged)
+        // A text with mixed line endings keeps them: only lines the review
+        // brought in take the tab's ending.
+        let text = model.hasMixedEndings ? model.lineEnding.restoring(endingsOf: model.storage.string, in: merged)
+            : model.lineEnding == .lf ? merged : model.lineEnding.apply(to: merged)
         for controller in windowControllers {
             (controller.contentViewController as? DocumentContent)?.replaceText(with: text, actionName: L10n.tr("Apply Disk Changes"))
         }
