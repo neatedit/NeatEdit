@@ -186,10 +186,10 @@ struct SyntaxLanguageTests {
 
     @Test func scansTwoMegabytesQuickly() {
         let text = "<?php\n" + String(repeating: "function go($a) { return \"x\" . 12; } // note\n", count: 45_000)
+        // Read before the work: the scan itself adds to the load.
+        let limit = TimeLimit(3, onCI: 10)
         let start = Date()
         #expect(!SyntaxLanguage.php.tokens(in: text).isEmpty)
-        // A shared CI runner is several times slower and far less even.
-        let limit: TimeInterval = ProcessInfo.processInfo.environment["CI"] == nil ? 3 : 10
-        #expect(Date().timeIntervalSince(start) < limit, "debug build")
+        #expect(Date().timeIntervalSince(start) < limit.seconds, "debug build, \(limit)")
     }
 }
