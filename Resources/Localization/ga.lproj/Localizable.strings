@@ -118,7 +118,7 @@
 "File changed on disk" = "Athraíodh an comhad ar an diosca";
 "Save My Version As…" = "Sábháil Mo Leagan Mar…";
 "Comparing…" = "Á chur i gcomparáid…";
-"Deleted from disk" = "Scriosadh ón diosca";
+"Deleted from disk. Saving will create it again." = "Scriosadh ón diosca. Cruthófar arís é nuair a shábhálfar.";
 "Changes made on disk" = "Athruithe a rinneadh ar an diosca";
 "Choose which changes to bring into your text. Changes you don't decide on are skipped." = "Roghnaigh na hathruithe le tabhairt isteach i do théacs. Scipeálfar athruithe nach ndéanann tú cinneadh fúthu.";
 "Apply" = "Cuir i bhFeidhm";

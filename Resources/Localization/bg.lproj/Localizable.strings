@@ -118,7 +118,7 @@
 "File changed on disk" = "Файлът е променен на диска";
 "Save My Version As…" = "Запазване на моята версия като…";
 "Comparing…" = "Сравняване…";
-"Deleted from disk" = "Изтрит от диска";
+"Deleted from disk. Saving will create it again." = "Изтрит от диска. При запазване ще бъде създаден отново.";
 "Changes made on disk" = "Промени, направени на диска";
 "Choose which changes to bring into your text. Changes you don't decide on are skipped." = "Изберете кои промени да внесете в текста си. Промените, за които не решите, се пропускат.";
 "Apply" = "Прилагане";

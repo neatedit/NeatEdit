@@ -118,7 +118,7 @@
 "File changed on disk" = "A fájl megváltozott a lemezen";
 "Save My Version As…" = "Saját változat mentése másként…";
 "Comparing…" = "Összehasonlítás…";
-"Deleted from disk" = "Törölve a lemezről";
+"Deleted from disk. Saving will create it again." = "Törölve a lemezről. Mentéskor újra létrejön.";
 "Changes made on disk" = "A lemezen végzett változások";
 "Choose which changes to bring into your text. Changes you don't decide on are skipped." = "Válassza ki, mely változásokat szeretné átvenni a szövegébe. Azok a változások, amelyekről nem dönt, kimaradnak.";
 "Apply" = "Alkalmaz";

@@ -118,7 +118,7 @@
 "File changed on disk" = "Fișierul s-a modificat pe disc";
 "Save My Version As…" = "Salvează versiunea mea ca…";
 "Comparing…" = "Se compară…";
-"Deleted from disk" = "Șters de pe disc";
+"Deleted from disk. Saving will create it again." = "Șters de pe disc. La salvare, fișierul va fi creat din nou.";
 "Changes made on disk" = "Modificări făcute pe disc";
 "Choose which changes to bring into your text. Changes you don't decide on are skipped." = "Alege ce modificări vrei să aduci în textul tău. Modificările asupra cărora nu decizi sunt omise.";
 "Apply" = "Aplică";

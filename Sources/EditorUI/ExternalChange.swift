@@ -58,7 +58,7 @@ final class ExternalChangeBanner: NSView {
             primaryButton.title = L10n.tr("Comparing…")
         case .deleted:
             isHidden = false
-            message.stringValue = L10n.tr("Deleted from disk")
+            message.stringValue = L10n.tr("Deleted from disk. Saving will create it again.")
             primaryButton.isHidden = true
         }
     }
@@ -83,7 +83,10 @@ final class ChangeReviewController: NSViewController {
     var onCancel: (() -> Void)?
 
     private let rows = NSStackView()
+    let scrollView = NSScrollView()
     private var choices: [Int: NSSegmentedControl] = [:]
+    /// The row shown for each hunk, to keep it when the review is updated.
+    private var built: [Int: (hunk: ExternalHunk, view: NSView)] = [:]
 
     init(merge: ExternalMerge) {
         self.merge = merge
@@ -109,7 +112,7 @@ final class ChangeReviewController: NSViewController {
         let document = FlippedView()
         rows.translatesAutoresizingMaskIntoConstraints = false
         document.addSubview(rows)
-        let scroll = NSScrollView()
+        let scroll = scrollView
         scroll.hasVerticalScroller = true
         scroll.borderType = .bezelBorder
         scroll.documentView = document
@@ -177,12 +180,37 @@ final class ChangeReviewController: NSViewController {
         return (0..<control.segmentCount).compactMap { control.label(forSegment: $0) }
     }
 
+    func rowView(for id: Int) -> NSView? { built[id]?.view }
+
+    /// Rows of hunks that are the same as before stay where they are, so the
+    /// sheet doesn't jump under the user when the file changes again.
     private func rebuildRows() {
-        rows.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        let origin = scrollView.contentView.bounds.origin
+        let earlier = built
+        let earlierChoices = choices
+        built = [:]
         choices = [:]
         for hunk in merge.hunks {
-            rows.addArrangedSubview(row(for: hunk))
+            if let kept = earlier[hunk.id], kept.hunk == hunk, let control = earlierChoices[hunk.id] {
+                built[hunk.id] = kept
+                choices[hunk.id] = control
+                control.selectedSegment = decisions[hunk.id].map { $0 == .accept ? 0 : 1 } ?? -1
+            } else {
+                built[hunk.id] = (hunk, row(for: hunk))
+            }
         }
+        let views = merge.hunks.compactMap { built[$0.id]?.view }
+        for view in rows.arrangedSubviews where !views.contains(where: { $0 === view }) { view.removeFromSuperview() }
+        for (index, view) in views.enumerated() where index >= rows.arrangedSubviews.count || rows.arrangedSubviews[index] !== view {
+            if rows.arrangedSubviews.contains(where: { $0 === view }) { rows.removeArrangedSubview(view) }
+            rows.insertArrangedSubview(view, at: index)
+        }
+        guard origin != .zero else { return }
+        view.layoutSubtreeIfNeeded()
+        let clip = scrollView.contentView
+        let lowest = max(0, (scrollView.documentView?.frame.height ?? 0) - clip.bounds.height)
+        clip.scroll(to: NSPoint(x: origin.x, y: min(origin.y, lowest)))
+        scrollView.reflectScrolledClipView(clip)
     }
 
     private func row(for hunk: ExternalHunk) -> NSView {

@@ -118,7 +118,7 @@
 "File changed on disk" = "Il-fajl inbidel fuq id-diska";
 "Save My Version As…" = "Issejvja l-Verżjoni Tiegħi Bħala…";
 "Comparing…" = "Qed iqabbel…";
-"Deleted from disk" = "Imħassar mid-diska";
+"Deleted from disk. Saving will create it again." = "Imħassar mid-diska. Meta tissejvja, il-fajl jerġa’ jinħoloq.";
 "Changes made on disk" = "Bidliet magħmula fuq id-diska";
 "Choose which changes to bring into your text. Changes you don't decide on are skipped." = "Agħżel liema bidliet iddaħħal fit-test tiegħek. Il-bidliet li ma tiddeċidix dwarhom jinqabżu.";
 "Apply" = "Applika";

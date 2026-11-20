@@ -118,7 +118,7 @@
 "File changed on disk" = "Filen er ændret på disken";
 "Save My Version As…" = "Gem min version som…";
 "Comparing…" = "Sammenligner…";
-"Deleted from disk" = "Slettet fra disken";
+"Deleted from disk. Saving will create it again." = "Slettet fra disken. Arkivet oprettes igen, når du gemmer.";
 "Changes made on disk" = "Ændringer foretaget på disken";
 "Choose which changes to bring into your text. Changes you don't decide on are skipped." = "Vælg, hvilke ændringer der skal med i din tekst. Ændringer, du ikke tager stilling til, springes over.";
 "Apply" = "Anvend";

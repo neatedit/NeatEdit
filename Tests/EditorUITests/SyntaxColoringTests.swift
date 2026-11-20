@@ -193,12 +193,24 @@ final class SyntaxColoringTests: XCTestCase {
         defer { document.close() }
         let coloring = controller.syntaxColoring
         wait { coloring.color(at: 0) != nil }
+        // Painted afresh once every line is laid out. Until then the layout
+        // manager only estimates where lines are, and the first pass colours
+        // some 2200 pt down: further than a window can grow on a small screen
+        // (a laptop, a CI runner), which would leave nothing new to show.
+        let textView = controller.textView
+        try XCTUnwrap(textView.layoutManager).ensureLayout(for: try XCTUnwrap(textView.textContainer))
+        controller.toggleSyntaxHighlighting(nil)
+        wait { coloring.color(at: 0) == nil }
+        controller.toggleSyntaxHighlighting(nil)
+        wait { coloring.color(at: 0) != nil }
         // The first line past what's been painted so far.
         let starts = controller.model.lineIndex.starts
         let row = try XCTUnwrap(starts.first { coloring.color(at: $0) == nil })
-        controller.view.window?.setContentSize(NSSize(width: 500, height: 3000))
+        let window = try XCTUnwrap(controller.view.window)
+        window.setContentSize(NSSize(width: 500, height: 3000))
         wait { coloring.color(at: row) != nil }
-        XCTAssertEqual(coloring.color(at: row), .syntax(.keyword))
+        XCTAssertEqual(coloring.color(at: row), .syntax(.keyword),
+                       "row \(row), window \(window.frame), visible \(controller.textView.visibleRect)")
     }
 
     func testTurnedOffWhileTheFirstScanRunsStaysOff() throws {

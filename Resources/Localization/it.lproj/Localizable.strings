@@ -118,7 +118,7 @@
 "File changed on disk" = "File modificato sul disco";
 "Save My Version As…" = "Salva la mia versione come…";
 "Comparing…" = "Confronto in corso…";
-"Deleted from disk" = "Eliminato dal disco";
+"Deleted from disk. Saving will create it again." = "Eliminato dal disco. Salvando verrà creato di nuovo.";
 "Changes made on disk" = "Modifiche fatte sul disco";
 "Choose which changes to bring into your text. Changes you don't decide on are skipped." = "Scegli quali modifiche portare nel tuo testo. Le modifiche su cui non decidi vengono saltate.";
 "Apply" = "Applica";

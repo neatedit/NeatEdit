@@ -118,7 +118,7 @@
 "File changed on disk" = "Fail muutus kettal";
 "Save My Version As…" = "Salvesta minu versioon nimega…";
 "Comparing…" = "Võrdlemine…";
-"Deleted from disk" = "Kettalt kustutatud";
+"Deleted from disk. Saving will create it again." = "Kettalt kustutatud. Salvestamisel luuakse fail uuesti.";
 "Changes made on disk" = "Kettal tehtud muudatused";
 "Choose which changes to bring into your text. Changes you don't decide on are skipped." = "Vali, millised muudatused oma teksti tuua. Muudatused, mille kohta sa ei otsusta, jäetakse vahele.";
 "Apply" = "Rakenda";

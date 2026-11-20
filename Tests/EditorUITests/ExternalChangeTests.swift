@@ -285,7 +285,7 @@ final class ExternalChangeTests: XCTestCase {
         try FileManager.default.removeItem(at: url)
         document.diskDidChange(nil)
         XCTAssertFalse(controller.banner.isHidden)
-        XCTAssertEqual(controller.banner.message.stringValue, "Deleted from disk")
+        XCTAssertEqual(controller.banner.message.stringValue, "Deleted from disk. Saving will create it again.")
         XCTAssertTrue(controller.banner.primaryButton.isHidden)
         XCTAssertEqual(controller.textView.string, "a")
 
@@ -554,18 +554,92 @@ final class ExternalChangeTests: XCTestCase {
             secondDisk: "a\nB\nc\nd\nE"), .accept)
     }
 
-    func testApplyingAReviewNormalizesAMixedTextAndUndoes() throws {
-        let (document, controller, url) = try open("a\r\nb\nc")
+    func testApplyingAReviewKeepsTheLineEndingsOfAMixedText() throws {
+        let (document, controller, url) = try open("a\r\nb\nc\nd")
         type("!", at: 0, in: controller)
-        try changeOnDisk("a\r\nb\nC", at: url, document: document)
-        let hunk = try XCTUnwrap(merge(document)?.hunks.first { $0.base.newLines == ["C"] })
-        document.applyReview([hunk.id: .accept])
-        XCTAssertEqual(controller.textView.string, "!a\r\nb\r\nC")
-        XCTAssertEqual(controller.statusBar.lineEndingButton.title, "CRLF")
+        try changeOnDisk("a\r\nb\nC\nd\ne", at: url, document: document)
+        let hunks = try XCTUnwrap(merge(document)?.hunks)
+        document.applyReview(Dictionary(uniqueKeysWithValues: hunks.map { ($0.id, HunkDecision.accept) }))
+        // Lines that were there keep their own endings; the added one takes the tab's.
+        XCTAssertEqual(controller.textView.string, "!a\r\nb\nC\nd\r\ne")
+        XCTAssertEqual(controller.statusBar.lineEndingButton.title, "Mixed")
 
         controller.textView.undoManager?.undo()
-        XCTAssertEqual(controller.textView.string, "!a\r\nb\nc")
+        XCTAssertEqual(controller.textView.string, "!a\r\nb\nc\nd")
         XCTAssertEqual(controller.statusBar.lineEndingButton.title, "Mixed")
+    }
+
+    // MARK: Deletion reported by the file coordinator
+
+    func testAFileReplacedByAnotherAppIsNotReportedAsDeleted() throws {
+        let (document, controller, _) = try open("a")
+        type("b", at: 1, in: controller)
+        // An atomic replace: the coordinator announces a deletion, yet the file is there.
+        document.accommodatePresentedItemDeletion { _ in }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.8))
+        XCTAssertTrue(controller.banner.isHidden)
+        guard case .none = document.externalState else { return XCTFail("expected no pending change") }
+    }
+
+    func testAFileThatIsGoneIsReportedAsDeleted() throws {
+        let (document, controller, url) = try open("a")
+        type("b", at: 1, in: controller)
+        try FileManager.default.removeItem(at: url)
+        document.accommodatePresentedItemDeletion { _ in }
+        let deadline = Date().addingTimeInterval(5)
+        while controller.banner.isHidden, Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+        guard case .deleted = document.externalState else { return XCTFail("expected the deleted state") }
+        XCTAssertFalse(controller.banner.isHidden)
+    }
+
+    // MARK: Review sheet updates
+
+    func testUpdatingTheReviewKeepsTheRowsThatDidNotChange() throws {
+        let base = "a\nb\nc\nd\ne\nf\ng\nh"
+        let first = ExternalMerge(base: base, mine: base, disk: "A\nb\nc\nd\ne\nf\ng\nh")
+        let review = ChangeReviewController(merge: first)
+        _ = review.view
+        review.decide(first.hunks[0].id, .accept)
+        let row = try XCTUnwrap(review.rowView(for: first.hunks[0].id))
+
+        let second = ExternalMerge(base: base, mine: base, disk: "A\nb\nc\nd\ne\nf\ng\nH")
+        review.update(merge: second)
+        XCTAssertEqual(review.rowCount, 2)
+        XCTAssertTrue(review.rowView(for: second.hunks[0].id) === row)
+        XCTAssertEqual(review.decisions, [second.hunks[0].id: .accept])
+        XCTAssertNotNil(review.rowView(for: second.hunks[1].id))
+    }
+
+    func testUpdatingTheReviewDropsRowsThatAreGone() throws {
+        let base = "a\nb\nc\nd\ne\nf\ng\nh"
+        let first = ExternalMerge(base: base, mine: base, disk: "A\nb\nc\nd\ne\nf\ng\nH")
+        let review = ChangeReviewController(merge: first)
+        _ = review.view
+        let gone = first.hunks[0].id
+        let second = ExternalMerge(base: base, mine: base, disk: "a\nb\nc\nd\ne\nf\ng\nH")
+        review.update(merge: second)
+        XCTAssertEqual(review.rowCount, 1)
+        XCTAssertNil(review.rowView(for: gone))
+        XCTAssertEqual(review.choiceLabels(for: second.hunks[0].id), ["Accept", "Skip"])
+    }
+
+    func testUpdatingTheReviewKeepsTheScrollPosition() throws {
+        let lines = (0..<120).map { "line \($0)" }
+        func disk(changing count: Int) -> String {
+            var out = lines
+            for index in 0..<count { out[index * 3] = "changed \(index)" }
+            return out.joined(separator: "\n")
+        }
+        let base = lines.joined(separator: "\n")
+        let review = ChangeReviewController(merge: ExternalMerge(base: base, mine: base, disk: disk(changing: 30)))
+        review.view.layoutSubtreeIfNeeded()
+        let clip = review.scrollView.contentView
+        clip.scroll(to: NSPoint(x: 0, y: 300))
+        XCTAssertEqual(clip.bounds.origin.y, 300, "the sheet has to be long enough to scroll")
+
+        review.update(merge: ExternalMerge(base: base, mine: base, disk: disk(changing: 31)))
+        XCTAssertEqual(review.rowCount, 31)
+        XCTAssertEqual(clip.bounds.origin.y, 300)
     }
 
     func testSilentReloadUndoStoresOnlyTheChange() throws {

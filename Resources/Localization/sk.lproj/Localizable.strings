@@ -118,7 +118,7 @@
 "File changed on disk" = "Súbor sa zmenil na disku";
 "Save My Version As…" = "Uložiť moju verziu ako…";
 "Comparing…" = "Porovnáva sa…";
-"Deleted from disk" = "Vymazané z disku";
+"Deleted from disk. Saving will create it again." = "Vymazané z disku. Uložením sa súbor vytvorí znova.";
 "Changes made on disk" = "Zmeny na disku";
 "Choose which changes to bring into your text. Changes you don't decide on are skipped." = "Vyberte, ktoré zmeny sa majú preniesť do vášho textu. Zmeny, o ktorých nerozhodnete, sa preskočia.";
 "Apply" = "Použiť";

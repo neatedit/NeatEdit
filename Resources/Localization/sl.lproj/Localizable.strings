@@ -118,7 +118,7 @@
 "File changed on disk" = "Datoteka se je na disku spremenila";
 "Save My Version As…" = "Shrani mojo različico kot…";
 "Comparing…" = "Primerjanje…";
-"Deleted from disk" = "Izbrisano z diska";
+"Deleted from disk. Saving will create it again." = "Izbrisano z diska. Ob shranjevanju bo datoteka znova ustvarjena.";
 "Changes made on disk" = "Spremembe na disku";
 "Choose which changes to bring into your text. Changes you don't decide on are skipped." = "Izberite, katere spremembe želite prenesti v svoje besedilo. Spremembe, o katerih ne odločite, bodo preskočene.";
 "Apply" = "Uporabi";

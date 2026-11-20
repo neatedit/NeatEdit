@@ -411,7 +411,8 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
     /// Switches the encoding used for saving; false when the text doesn't fit.
     @discardableResult
     func applySaveEncoding(_ encoding: String.Encoding) -> Bool {
-        guard encoding != model.file.encoding else { return true }
+        // Choosing UTF-8 for a UTF-8 file with a BOM is how the BOM is dropped.
+        guard encoding != model.file.encoding || (encoding == .utf8 && model.file.hasBOM) else { return true }
         guard TextFile(text: model.storage.string).canEncode(as: encoding) else { return false }
         model.setEncoding(encoding)
         document?.updateChangeCount(.changeDone)
@@ -428,11 +429,16 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
     /// text and the setting.
     func setLineEnding(_ ending: LineEnding) {
         guard ending != model.lineEnding || model.hasMixedEndings else { return }
-        let caret = textView.selectedRange().location
-        replaceAllText(with: ending.apply(to: model.storage.string), actionName: L10n.tr("Convert Line Endings")) {
+        // The selection stays on its characters: every line break above it
+        // may have changed length.
+        let old = model.storage.string as NSString
+        let selection = textView.selectedRange()
+        func converted(_ offset: Int) -> Int { (ending.apply(to: old.substring(to: offset)) as NSString).length }
+        let start = converted(selection.location), end = converted(NSMaxRange(selection))
+        replaceAllText(with: ending.apply(to: old as String), actionName: L10n.tr("Convert Line Endings")) {
             self.setFormat(self.model.file, lineEnding: ending)
         }
-        textView.setSelectedRange(NSRange(location: min(caret, model.storage.length), length: 0))
+        textView.setSelectedRange(NSRange(location: start, length: end - start))
     }
 
     @objc func goToLine(_ sender: Any?) {
