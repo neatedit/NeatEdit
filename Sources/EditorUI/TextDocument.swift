@@ -496,9 +496,11 @@ public final class TextDocument: NSDocument {
                 source.cancel()
                 self.appendWatcher = nil
                 self.rewatch(attemptsLeft: 20)
-                // An editor tab leaves moves and deletions to the file presenter,
-                // which knows where the file went.
-                guard self.isViewer else { return }
+                // An editor tab leaves moves to the file presenter, which knows
+                // where the file went. A deletion it checks itself: the presenter
+                // isn't told of every one (rm in a terminal), and may be told
+                // before the file is gone.
+                guard self.isViewer || events.contains(.delete) else { return }
             }
             self.scheduleDiskCheck()
         }

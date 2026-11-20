@@ -125,8 +125,13 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
     }
 
     func replaceText(with text: String, actionName: String) {
+        let isMixed = LineEnding.isMixed(in: text)
+        // A mixed text that came out with one kind of line break is that kind
+        // from now on: a save must not turn it into what its first line had.
+        let settled = model.hasMixedEndings && !isMixed && text.utf8.contains { $0 == 0x0A || $0 == 0x0D }
+        let ending = settled ? LineEnding.detect(in: text) : model.lineEnding
         replaceAllText(with: text, actionName: actionName) {
-            self.setFormat(self.model.file, lineEnding: self.model.lineEnding, isMixed: LineEnding.isMixed(in: text))
+            self.setFormat(self.model.file, lineEnding: ending, isMixed: isMixed)
         }
     }
 
@@ -433,12 +438,13 @@ final class EditorViewController: NSViewController, TailFollowing, NSTextViewDel
         // may have changed length.
         let old = model.storage.string as NSString
         let selection = textView.selectedRange()
-        func converted(_ offset: Int) -> Int { (ending.apply(to: old.substring(to: offset)) as NSString).length }
-        let start = converted(selection.location), end = converted(NSMaxRange(selection))
+        let start = ending.offset(selection.location, convertedFrom: old)
+        let end = selection.length == 0 ? start : ending.offset(NSMaxRange(selection), convertedFrom: old)
         replaceAllText(with: ending.apply(to: old as String), actionName: L10n.tr("Convert Line Endings")) {
             self.setFormat(self.model.file, lineEnding: ending)
         }
-        textView.setSelectedRange(NSRange(location: start, length: end - start))
+        let length = model.storage.length
+        textView.setSelectedRange(NSRange(location: min(start, length), length: min(end, length) - min(start, length)))
     }
 
     @objc func goToLine(_ sender: Any?) {
