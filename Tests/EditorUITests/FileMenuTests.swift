@@ -24,6 +24,43 @@ final class FileMenuTests: XCTestCase {
         return try XCTUnwrap(file.item(withTitle: title), title)
     }
 
+    // MARK: The name macOS suggests for a draft
+
+    func testASuggestedDraftNameDoesNotCarryTheAppName() throws {
+        let saved = TextDocument.appNames
+        defer { TextDocument.appNames = saved }
+        TextDocument.appNames = ["NeatEdit"]
+        let draft = try TextDocument(type: "public.plain-text")
+
+        draft.displayName = "NeatEdit Roadmap Update"
+        XCTAssertEqual(draft.displayName, "Roadmap Update")
+
+        draft.displayName = "Google Ads Campaign"
+        XCTAssertEqual(draft.displayName, "Google Ads Campaign")
+    }
+
+    func testASuggestedNameThatIsOnlyTheAppNameLeavesTheDraftUntitled() throws {
+        let saved = TextDocument.appNames
+        defer { TextDocument.appNames = saved }
+        TextDocument.appNames = ["NeatEdit"]
+        let draft = try TextDocument(type: "public.plain-text")
+        let untitled = draft.displayName
+
+        draft.displayName = "NeatEdit"
+        XCTAssertEqual(draft.displayName, untitled)
+    }
+
+    func testAFileOnDiskKeepsTheAppNameInItsName() throws {
+        let saved = TextDocument.appNames
+        defer { TextDocument.appNames = saved }
+        TextDocument.appNames = ["NeatEdit"]
+        let (document, url) = try open()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        document.displayName = "NeatEdit Roadmap"
+        XCTAssertEqual(document.displayName, "NeatEdit Roadmap")
+    }
+
     // MARK: Save As
 
     func testFileMenuOffersSaveAs() throws {

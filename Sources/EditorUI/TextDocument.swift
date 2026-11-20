@@ -311,6 +311,30 @@ public final class TextDocument: NSDocument {
         super.fileNameExtension(forType: typeName, saveOperation: saveOperation) ?? (fileURL == nil ? "txt" : nil)
     }
 
+    /// What macOS may call this app in a name it suggests for a draft.
+    static var appNames: [String] = {
+        let bundle = Bundle.main
+        let names = [bundle.object(forInfoDictionaryKey: "CFBundleDisplayName"), bundle.object(forInfoDictionaryKey: "CFBundleName")]
+            .compactMap { $0 as? String } + [ProcessInfo.processInfo.processName]
+        return names.filter { !$0.isEmpty }
+    }()
+
+    /// macOS 27 names an unsaved draft from its text and sets it here. It also
+    /// reads the draft file's own name, "Unsaved <App> Document", so the app's
+    /// name ends up in the suggestion ("NeatEdit Roadmap" for a roadmap that
+    /// has nothing to do with the app). A draft's name never needs it.
+    override public var displayName: String! {
+        get { super.displayName }
+        set {
+            guard fileURL == nil, var name = newValue else { return super.displayName = newValue }
+            for app in Self.appNames {
+                guard let cleaned = DraftName.removing(app: app, from: name) else { return super.displayName = nil }
+                name = cleaned
+            }
+            super.displayName = name
+        }
+    }
+
     /// A file moved to the Trash while open. macOS doesn't let an app write
     /// there (or move the file back out), so the text can only go elsewhere.
     static func isInTrash(_ url: URL?) -> Bool {
