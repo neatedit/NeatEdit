@@ -185,7 +185,6 @@ final class ChangeReviewController: NSViewController {
     /// Rows of hunks that are the same as before stay where they are, so the
     /// sheet doesn't jump under the user when the file changes again.
     private func rebuildRows() {
-        let origin = scrollView.contentView.bounds.origin
         let earlier = built
         let earlierChoices = choices
         built = [:]
@@ -205,12 +204,6 @@ final class ChangeReviewController: NSViewController {
             if rows.arrangedSubviews.contains(where: { $0 === view }) { rows.removeArrangedSubview(view) }
             rows.insertArrangedSubview(view, at: index)
         }
-        guard origin != .zero else { return }
-        view.layoutSubtreeIfNeeded()
-        let clip = scrollView.contentView
-        let lowest = max(0, (scrollView.documentView?.frame.height ?? 0) - clip.bounds.height)
-        clip.scroll(to: NSPoint(x: origin.x, y: min(origin.y, lowest)))
-        scrollView.reflectScrolledClipView(clip)
     }
 
     private func row(for hunk: ExternalHunk) -> NSView {

@@ -111,4 +111,38 @@ struct TextFileTests {
         #expect(TextStats(text: "").lines == 1)
         #expect(TextStats(text: "x\r\ny").lines == 2)
     }
+
+    // MARK: Offsets through a line-ending conversion
+
+    @Test func anOffsetMovesByTheLineBreaksBeforeIt() {
+        let text = "a\nb\nc" as NSString
+        #expect(LineEnding.crlf.offset(4, convertedFrom: text) == 6)
+        #expect(LineEnding.crlf.offset(0, convertedFrom: text) == 0)
+        #expect(LineEnding.crlf.offset(1, convertedFrom: text) == 1)
+        #expect(LineEnding.crlf.offset(5, convertedFrom: text) == 7)
+        #expect(LineEnding.lf.offset(4, convertedFrom: text) == 4)
+    }
+
+    @Test func anOffsetShrinksWhenLineBreaksDo() {
+        let text = "a\r\nb\rc\nd" as NSString
+        #expect(LineEnding.lf.offset(7, convertedFrom: text) == 6)
+        #expect(LineEnding.cr.offset(3, convertedFrom: text) == 2)
+        #expect(LineEnding.crlf.offset(7, convertedFrom: text) == 9)
+    }
+
+    @Test func anOffsetInsideALineBreakLandsAfterIt() {
+        #expect(LineEnding.lf.offset(2, convertedFrom: "a\r\nb") == 2)
+        #expect(LineEnding.crlf.offset(2, convertedFrom: "a\r\nb") == 3)
+    }
+
+    @Test func offsetsMatchConvertingThePrefixAcrossBufferEdges() {
+        // Line breaks of every kind, some split by the scan's buffer.
+        let text = String(repeating: "ab\r\ncd\re\n", count: 20_000) as NSString
+        for ending in [LineEnding.lf, .crlf, .cr] {
+            for offset in [0, 1, 3, 4, 65_535, 65_536, 65_537, 131_072, text.length - 1, text.length] {
+                let expected = (ending.apply(to: text.substring(to: offset)) as NSString).length
+                #expect(ending.offset(offset, convertedFrom: text) == expected, "\(ending) at \(offset)")
+            }
+        }
+    }
 }

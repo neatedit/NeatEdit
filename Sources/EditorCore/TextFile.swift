@@ -144,6 +144,34 @@ public enum LineEnding: String, CaseIterable, Sendable {
         return false
     }
 
+    /// Where UTF-16 `offset` of `text` ends up once every line break of `text`
+    /// is `self`: the same as the length of the converted text before it,
+    /// without converting anything. An offset inside a CRLF lands after it.
+    public func offset(_ offset: Int, convertedFrom text: NSString) -> Int {
+        let end = min(max(offset, 0), text.length)
+        let width = string.utf16.count
+        var delta = 0
+        var previousWasCR = false
+        var buffer = [unichar](repeating: 0, count: 65_536)
+        var position = 0
+        while position < end {
+            let count = min(buffer.count, end - position)
+            text.getCharacters(&buffer, range: NSRange(location: position, length: count))
+            for index in 0..<count {
+                let character = buffer[index]
+                if character == 0x0A {
+                    // After a CR this is the second half of a break already counted as one character.
+                    delta += previousWasCR ? -1 : width - 1
+                } else if character == 0x0D {
+                    delta += width - 1
+                }
+                previousWasCR = character == 0x0D
+            }
+            position += count
+        }
+        return end + delta
+    }
+
     public func apply(to text: String) -> String {
         let normalized = text
             .replacingOccurrences(of: "\r\n", with: "\n")

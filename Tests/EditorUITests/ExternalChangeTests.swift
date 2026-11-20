@@ -569,7 +569,35 @@ final class ExternalChangeTests: XCTestCase {
         XCTAssertEqual(controller.statusBar.lineEndingButton.title, "Mixed")
     }
 
+    func testAReviewThatLeavesOneKindOfLineEndingSetsItForTheTab() throws {
+        let (document, controller, url) = try open("a\r\nb\nc\nd")
+        XCTAssertEqual(controller.statusBar.lineEndingButton.title, "Mixed")
+        type("!", at: 8, in: controller)
+        // The only CRLF line is gone on disk: what's left is plain LF.
+        try changeOnDisk("b\nc\nd", at: url, document: document)
+        let hunks = try XCTUnwrap(merge(document)?.hunks)
+        document.applyReview(Dictionary(uniqueKeysWithValues: hunks.map { ($0.id, HunkDecision.accept) }))
+        XCTAssertEqual(controller.textView.string, "b\nc\nd!")
+        XCTAssertEqual(controller.statusBar.lineEndingButton.title, "LF")
+        XCTAssertEqual(try document.data(ofType: "public.plain-text"), Data("b\nc\nd!".utf8))
+
+        controller.textView.undoManager?.undo()
+        XCTAssertEqual(controller.textView.string, "a\r\nb\nc\nd!")
+        XCTAssertEqual(controller.statusBar.lineEndingButton.title, "Mixed")
+    }
+
     // MARK: Deletion reported by the file coordinator
+
+    func testAFileRemovedWithoutNoticeIsReportedAsDeleted() throws {
+        let (document, controller, url) = try open("a")
+        type("b", at: 1, in: controller)
+        // No file coordination (rm in a terminal), or a notice that came
+        // before the file was gone: only the watcher on the file sees it.
+        try FileManager.default.removeItem(at: url)
+        let deadline = Date().addingTimeInterval(5)
+        while controller.banner.isHidden, Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+        guard case .deleted = document.externalState else { return XCTFail("expected the deleted state") }
+    }
 
     func testAFileReplacedByAnotherAppIsNotReportedAsDeleted() throws {
         let (document, controller, _) = try open("a")
@@ -638,6 +666,7 @@ final class ExternalChangeTests: XCTestCase {
         XCTAssertEqual(clip.bounds.origin.y, 300, "the sheet has to be long enough to scroll")
 
         review.update(merge: ExternalMerge(base: base, mine: base, disk: disk(changing: 31)))
+        review.view.layoutSubtreeIfNeeded()
         XCTAssertEqual(review.rowCount, 31)
         XCTAssertEqual(clip.bounds.origin.y, 300)
     }
