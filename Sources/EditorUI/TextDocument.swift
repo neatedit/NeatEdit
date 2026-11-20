@@ -311,9 +311,26 @@ public final class TextDocument: NSDocument {
         super.fileNameExtension(forType: typeName, saveOperation: saveOperation) ?? (fileURL == nil ? "txt" : nil)
     }
 
+    /// A file moved to the Trash while open. macOS doesn't let an app write
+    /// there (or move the file back out), so the text can only go elsewhere.
+    static func isInTrash(_ url: URL?) -> Bool {
+        guard let url else { return false }
+        return url.standardizedFileURL.pathComponents.dropLast().contains { $0 == ".Trash" || $0 == ".Trashes" }
+    }
+
+    /// Save for a file in the Trash asks where to put it instead of failing
+    /// with "the file is locked" and then "you don't have permission".
+    @objc override public func save(_ sender: Any?) {
+        if Self.isInTrash(fileURL) { saveAs(sender) } else { super.save(sender) }
+    }
+
     override public func prepareSavePanel(_ savePanel: NSSavePanel) -> Bool {
         // Suggest .txt, but any extension (or none) is fine for a plain-text editor.
         if fileURL == nil { savePanel.allowedContentTypes = [.plainText] }
+        // Not the Trash again: saving there is what failed.
+        if Self.isInTrash(fileURL) {
+            savePanel.directoryURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        }
         savePanel.allowsOtherFileTypes = true
         savePanel.isExtensionHidden = false
         return true

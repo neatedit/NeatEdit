@@ -103,6 +103,7 @@ enum MainMenu {
             .separator(),
             item("Close", #selector(NSWindow.performClose(_:)), "w"),
             item("Save…", #selector(NSDocument.save(_:)), "s"),
+            item("Save As…", #selector(NSDocument.saveAs(_:)), "s", [.command, .option, .shift]),
             item("Duplicate", #selector(NSDocument.duplicate(_:)), "s", [.command, .shift]),
             item("Rename…", #selector(NSDocument.rename(_:))),
             item("Move To…", #selector(NSDocument.move(_:))),

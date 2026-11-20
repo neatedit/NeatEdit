@@ -24,6 +24,27 @@ final class FileMenuTests: XCTestCase {
         return try XCTUnwrap(file.item(withTitle: title), title)
     }
 
+    // MARK: Save As
+
+    func testFileMenuOffersSaveAs() throws {
+        let item = try fileItem("Save As…")
+        XCTAssertEqual(item.action, #selector(NSDocument.saveAs(_:)))
+        XCTAssertEqual(item.keyEquivalent, "s")
+        XCTAssertEqual(item.keyEquivalentModifierMask, [.command, .option, .shift])
+        let (document, _) = try open()
+        defer { document.close() }
+        XCTAssertTrue(document.validateUserInterfaceItem(item))
+    }
+
+    func testAFileInTheTrashIsRecognized() {
+        XCTAssertTrue(TextDocument.isInTrash(URL(fileURLWithPath: "/Users/me/.Trash/notes.txt")))
+        XCTAssertTrue(TextDocument.isInTrash(URL(fileURLWithPath: "/Users/me/.Trash/folder/notes.txt")))
+        XCTAssertTrue(TextDocument.isInTrash(URL(fileURLWithPath: "/Volumes/Disk/.Trashes/501/notes.txt")))
+        XCTAssertFalse(TextDocument.isInTrash(URL(fileURLWithPath: "/Users/me/Desktop/notes.txt")))
+        XCTAssertFalse(TextDocument.isInTrash(URL(fileURLWithPath: "/Users/me/Desktop/.Trash")), "a file that is only named like it")
+        XCTAssertFalse(TextDocument.isInTrash(nil))
+    }
+
     // MARK: Path
 
     func testSubtitleIsTheFolderWithTheHomeAbbreviated() {
